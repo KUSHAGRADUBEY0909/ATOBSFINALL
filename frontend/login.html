@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in · ATOBS</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="login">
+<header id="top"></header>
+<main class="wrap">
+  <section class="card auth-card">
+    <h1>Log in</h1>
+    <form id="f">
+      <div class="field"><label for="email">Email</label><input id="email" type="email" required autocomplete="username"></div>
+      <div class="field"><label for="pw">Password</label><input id="pw" type="password" required autocomplete="current-password"></div>
+      <div id="err" class="error" hidden style="margin-top:.8rem"></div>
+      <button class="btn primary" style="width:100%;margin-top:1rem">Log in</button>
+    </form>
+    <p class="muted">New here? <a href="/register.html">Create a passenger account</a></p>
+    <div class="demo-accounts notice">Demo accounts:<br>
+      <button class="btn sm" data-e="admin@atobs.local" data-p="admin123">Admin</button>
+      <button class="btn sm" data-e="operator@atobs.local" data-p="operator123">Operator</button>
+      <button class="btn sm" data-e="passenger@atobs.local" data-p="passenger123">Passenger</button>
+    </div>
+  </section>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+document.querySelectorAll("[data-e]").forEach((b) => (b.onclick = () => { $("email").value = b.dataset.e; $("pw").value = b.dataset.p; }));
+$("f").onsubmit = async (e) => {
+  e.preventDefault();
+  $("err").hidden = true;
+  try {
+    const { user } = await ATOBS.api("/api/auth/login", { json: { email: $("email").value, password: $("pw").value } });
+    const next = ATOBS.qs("next");
+    location.href = next && next.startsWith("/") ? next : user.role === "passenger" ? "/" : user.role === "operator" ? "/counter.html" : "/admin.html";
+  } catch (ex) { $("err").textContent = ex.message; $("err").hidden = false; }
+};
+</script>
+</body>
+</html>

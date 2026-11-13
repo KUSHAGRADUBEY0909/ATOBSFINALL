@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camera simulation · ATOBS</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="sim">
+<header id="top"></header>
+<main class="wrap">
+  <div class="row" style="margin-bottom:.6rem"><h1 style="margin:0">Camera passenger-count simulation</h1><span class="spacer"></span><span class="pill" id="det">detector: …</span></div>
+  <p class="muted" style="margin-top:0;max-width:900px">Each clip is run through the same counting pipeline as the live passenger counter. The count is compared with the <b>actual</b> number of people (ground truth) frame by frame, to show how accurate the camera count is.</p>
+
+  <div class="clip-tabs" id="clips"></div>
+
+  <div class="sim-grid" style="margin-top:1rem">
+    <div class="stack">
+      <div class="sim-video"><video id="v" controls playsinline muted preload="auto"></video><canvas id="ov"></canvas></div>
+      <section class="card">
+        <div class="row"><h3 style="margin:0">Count over time</h3><span class="spacer"></span>
+          <div class="legend"><span class="l-gt">Actual (ground truth)</span><span class="l-det">Camera headcount</span><span class="l-door">Door count on board</span></div></div>
+        <svg id="chart" class="timeline-chart" role="img" aria-label="Detected and actual count over time"></svg>
+        <small class="muted">Click the chart to jump to that moment.</small>
+      </section>
+      <section class="card" id="camInfo"></section>
+    </div>
+    <aside class="stack">
+      <div class="vs" id="vs"></div>
+      <section class="card">
+        <div class="row" style="align-items:flex-start;gap:1rem;flex-wrap:wrap">
+          <div id="smGT"></div><div id="smCam"></div>
+        </div>
+      </section>
+      <section class="card">
+        <h3>Accuracy on this clip</h3>
+        <div id="metrics"></div>
+      </section>
+      <section class="card" id="staff" hidden>
+        <h3>Staff tools</h3>
+        <div class="row"><button class="btn sm" id="liveBtn">Detect this frame live</button><button class="btn sm" id="rerun">Re-run evaluation</button><span id="jobState" class="muted"></span></div>
+        <div id="liveOut" class="muted" style="margin-top:.4rem"></div>
+        <form id="verify" class="row" style="margin-top:.8rem">
+          <label style="margin:0">Actual people in this frame</label><input id="vCount" type="number" min="0" max="200" style="width:90px" required>
+          <button class="btn sm">Save check</button>
+        </form>
+        <small class="muted">Pause the video, count the people yourself, and save: the clip's accuracy is updated with your check.</small>
+        <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0">
+        <form id="up" class="stack">
+          <b>Test your own bus video</b>
+          <input id="upTitle" placeholder="Title, e.g. Route 500D evening rush" required>
+          <div class="row"><label style="margin:0">Camera</label><select id="upCam" style="width:auto"><option value="front">Front of cabin, looking back</option><option value="door">Above the door, looking down</option></select></div>
+          <input id="upFile" type="file" accept="video/mp4,video/webm,video/quicktime" required>
+          <button class="btn primary">Upload &amp; evaluate</button>
+        </form>
+      </section>
+    </aside>
+  </div>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const { api, esc } = ATOBS;
+const $ = (id) => document.getElementById(id);
+const v = $("v");
+let clips = [], clip = null, meta = null, res = null, gt = [], liveCount = null;
+
+function kindLabel(k) { return { simulated: "Simulated bus", real: "Real footage", uploaded: "Uploaded" }[k] || k; }
+
+async function loadClips(selectId) {
+  const d = await api("/api/sim/clips");
+  clips = d.items;
+  $("det").textContent = "detector: " + d.detector;
+  $("clips").innerHTML = clips.map((c) => {
+    const m = c.metrics, acc = m && (m.door_onboard || m.headcount);
+    return `<button data-id="${c.id}" class="${clip && clip.id === c.id ? "on" : ""}"><b>${esc(c.title)}</b><br>
+      <small><span class="pill ${c.kind === "real" ? "ok" : c.kind === "uploaded" ? "warn" : ""}">${kindLabel(c.kind)}</span>
+      ${acc ? ` ${acc.accuracy_pct}% accurate` : c.job && c.job.status === "running" ? " evaluating " + c.job.progress + "%" : " not evaluated"}</small></button>`;
+  }).join("");
+  $("clips").onclick = (e) => { const b = e.target.closest("button[data-id]"); if (b) select(b.dataset.id); };
+  if (selectId || !clip) select(selectId || ATOBS.qs("clip") || clips[0].id);
+}
+
+async function select(id) {
+  clip = clips.find((c) => c.id === id) || clips[0];
+  document.querySelectorAll("#clips button").forEach((b) => b.classList.toggle("on", b.dataset.id === clip.id));
+  history.replaceState(null, "", `?clip=${clip.id}`);
+  meta = await (await fetch(`/sim/${clip.id}.json`, { cache: "no-store" })).json();
+  try {
+    const rr = await fetch(`/sim/${clip.id}.results.json`, { cache: "no-store" });
+    res = rr.ok ? await rr.json() : null;
+  } catch (_) { res = null; }
+  gt = meta.frames ? meta.frames : [...(meta.annotations || []), ...(meta.manual_gt || [])].sort((a, b) => a.t - b.t);
+  v.src = clip.video;
+  liveCount = null;
+  $("camInfo").innerHTML = `<h3>Camera setup</h3><p style="margin:.2rem 0"><b>${esc(meta.camera || "")}</b></p>
+    <p class="muted" style="margin:.2rem 0">${esc(meta.source || "")}</p>
+    ${meta.kind === "simulated" ? `<p style="margin:.4rem 0 0">The camera is mounted at the <b>front of the bus above the windscreen, angled down the aisle</b>, so every seated passenger's face is visible. Two counts run side by side:</p>
+      <ul style="margin:.3rem 0 0 1.1rem"><li><b>Door count</b> (main figure): tracks each person through the yellow line at the front door. Boarding adds 1, alighting subtracts 1.</li>
+      <li><b>Cabin headcount</b> (cross-check): counts every person visible in the frame, using zoomed tiles so far rows are seen.</li></ul>` :
+      `<p style="margin:.4rem 0 0">Real CCTV-style footage, scored with a <b>headcount</b> of everyone visible in the frame. The true count was checked by hand once per second.</p>`}`;
+  renderMetrics();
+  drawChart();
+  update();
+}
+
+function nearest(arr, t, key) {
+  // last element with .t <= t (+ small slack), optionally requiring a key
+  let lo = 0, hi = arr.length - 1, best = -1;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (arr[mid].t <= t + 0.02) { best = mid; lo = mid + 1; } else hi = mid - 1; }
+  if (!key) return best >= 0 ? arr[best] : null;
+  for (let i = best; i >= 0 && i > best - 30; i--) if (arr[i][key] !== undefined) return arr[i];
+  return null;
+}
+
+function gtAt(t) {
+  if (!gt.length) return null;
+  if (meta.frames) return nearest(gt, t);
+  const g = gt.reduce((b, p) => (Math.abs(p.t - t) < Math.abs((b ? b.t : 1e9) - t) ? p : b), null);
+  return g && Math.abs(g.t - t) <= 0.6 ? g : null;
+}
+
+function card(label, value, actual, note) {
+  const ok = actual == null || value == null ? "" : Math.abs(value - actual) <= 1 ? "ok" : "bad";
+  return `<div class="c ${ok}"><small class="muted">${label}</small><div class="v">${value ?? "–"}</div><small>${note || ""}</small></div>`;
+}
+
+function update() {
+  const t = v.currentTime || 0;
+  const r = res ? nearest(res.frames, t) : null;
+  const h = res ? nearest(res.frames, t, "head") : null;
+  const g = gtAt(t);
+  const actual = g ? g.count : null;
+  const door = meta.kind === "simulated" && r ? r.onboard : null;
+  const head = liveCount != null ? liveCount : h ? h.head : null;
+  $("vs").innerHTML =
+    (door != null ? card("Door count (on board)", door, actual, actual != null ? diff(door, actual) : "") : "") +
+    card(liveCount != null ? "Live headcount" : "Cabin headcount", head, actual, actual != null && head != null ? diff(head, actual) : "") +
+    card("Actual (ground truth)", actual, null, g ? (meta.frames ? `${g.seated} seated · ${g.standing} standing` : "hand-counted") : "no check at this time");
+  drawOverlay(r, h);
+  seatMaps(g, door ?? head);
+  cursor(t);
+}
+function diff(a, b) { const d = a - b; return d === 0 ? "exact match" : `${d > 0 ? "+" : ""}${d} vs actual`; }
+
+async function seatMaps(g, camCount) {
+  await ATOBS.seatsReady;
+  if (meta.frames && g) {
+    ATOBS.seatMap($("smGT"), { seats: g.seats, standing: g.standing, title: "Actual seats", compact: true });
+  } else {
+    $("smGT").innerHTML = "";
+  }
+  const c = camCount ?? 0;
+  ATOBS.seatMap($("smCam"), { occupied: Math.min(40, c), standing: Math.max(0, c - 40), seed: clip.id, compact: true,
+    title: meta.frames ? "Camera estimate" : "Camera headcount on a 40-seat bus" });
+}
+
+function drawOverlay(r, h) {
+  const c = $("ov"), ctx = c.getContext("2d");
+  const W = c.clientWidth, H = c.clientHeight;
+  c.width = W * devicePixelRatio; c.height = H * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  // video box inside the element (object-fit contain; controls overlay the bottom)
+  const vw = v.videoWidth || meta.width, vh = v.videoHeight || meta.height;
+  const s = Math.min(W / vw, H / vh), ox = (W - vw * s) / 2, oy = (H - vh * s) / 2;
+  const X = (x) => ox + x * vw * s, Y = (y) => oy + y * vh * s;
+  if (meta.kind === "simulated" && res) {
+    const L = res.line;
+    ctx.strokeStyle = "#f2a900"; ctx.lineWidth = 3; ctx.setLineDash([10, 6]);
+    ctx.beginPath(); ctx.moveTo(X(0), Y(L.pos)); ctx.lineTo(X(1), Y(L.pos)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#f2a900"; ctx.font = "bold 12px system-ui"; ctx.fillText("DOOR LINE  ↑ IN   ↓ OUT", X(0) + 8, Y(L.pos) - 6);
+  }
+  const boxes = (h && h.head_boxes) || (r && r.boxes) || [];
+  ctx.lineWidth = 2;
+  boxes.forEach((b) => {
+    ctx.strokeStyle = "#4fd1c5";
+    ctx.strokeRect(X(b[0]), Y(b[1]), (b[2] - b[0]) * vw * s, (b[3] - b[1]) * vh * s);
+  });
+  if (r && r.events && r.events.length) {
+    ctx.fillStyle = r.events[0] === "in" ? "#2e8b57" : "#c0392b";
+    ctx.fillRect(X(0.5) - 60, Y(0.06), 120, 24);
+    ctx.fillStyle = "#fff"; ctx.font = "bold 13px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(r.events[0] === "in" ? "BOARDED +1" : "ALIGHTED −1", X(0.5), Y(0.06) + 16); ctx.textAlign = "start";
+  }
+}
+
+let chartScale = null;
+function drawChart() {
+  const svg = $("chart");
+  const W = svg.clientWidth || 600, H = 160, P = { l: 30, r: 8, t: 8, b: 18 };
+  const dur = v.duration || (res && res.frames.length ? res.frames[res.frames.length - 1].t : 60) || 60;
+  const pts = res ? res.frames : [];
+  const maxY = Math.max(5, ...gt.map((g) => g.count), ...pts.map((p) => Math.max(p.head || 0, p.onboard || 0))) + 2;
+  const x = (t) => P.l + (W - P.l - P.r) * t / dur, y = (c) => P.t + (H - P.t - P.b) * (1 - c / maxY);
+  chartScale = { x, dur, W, P };
+  let g = "";
+  for (let k = 0; k <= maxY; k += Math.ceil(maxY / 4)) g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y(k)}" y2="${y(k)}" stroke="#eef2f3"/><text x="${P.l - 4}" y="${y(k) + 3}" text-anchor="end">${k}</text>`;
+  const path = (arr, f) => arr.length ? "M" + arr.map((p) => `${x(p.t).toFixed(1)},${y(f(p)).toFixed(1)}`).join("L") : "";
+  if (gt.length) g += meta.frames ? `<path class="gt" d="${path(gt, (p) => p.count)}"/>` : gt.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.count)}" r="3" fill="#12232b"/>`).join("");
+  const hp = pts.filter((p) => p.head !== undefined);
+  g += `<path class="det" d="${path(hp, (p) => p.head)}"/>`;
+  if (meta.kind === "simulated") g += `<path class="door" d="${path(pts, (p) => p.onboard)}"/>`;
+  g += `<line id="cur" class="cursor" x1="${P.l}" x2="${P.l}" y1="${P.t}" y2="${H - P.b}"/>`;
+  for (let s = 0; s <= dur; s += Math.ceil(dur / 8 / 10) * 10 || 10) g += `<text x="${x(s)}" y="${H - 4}" text-anchor="middle">${s}s</text>`;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = g;
+}
+function cursor(t) { const c = document.getElementById("cur"); if (c && chartScale) { const X = chartScale.x(t); c.setAttribute("x1", X); c.setAttribute("x2", X); } }
+$("chart").onclick = (e) => {
+  if (!chartScale) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const px = (e.clientX - r.left) * (chartScale.W / r.width);
+  v.currentTime = Math.max(0, (px - chartScale.P.l) / (chartScale.W - chartScale.P.l - chartScale.P.r) * chartScale.dur);
+};
+
+function renderMetrics() {
+  const m = res && res.metrics;
+  if (!m) { $("metrics").innerHTML = `<p class="muted">Not evaluated yet${clip.job && clip.job.status === "running" ? ` (running: ${clip.job.progress}%)` : ""}.</p>`; return; }
+  const row = (name, x) => x ? `<tr><td>${name}</td><td><b>${x.accuracy_pct ?? "–"}%</b></td><td>${x.exact_pct}%</td><td>${x.within1_pct}%</td><td>${x.within2_pct}%</td><td>${x.mae}</td><td>${x.samples}</td></tr>` : "";
+  const checks = (meta.manual_gt || []).filter((c) => c.detected != null);
+  const manual = checks.length;
+  let manualRow = "";
+  if (manual) {
+    const e = checks.map((c) => c.detected - c.count), tot = checks.reduce((a, c) => a + c.count, 0);
+    const pc = (f) => Math.round((100 * e.filter(f).length) / e.length);
+    const acc = tot ? Math.max(0, Math.round(100 * (1 - e.reduce((a, x) => a + Math.abs(x), 0) / tot))) : null;
+    manualRow = row("Your hand checks", { accuracy_pct: acc, exact_pct: pc((x) => x === 0), within1_pct: pc((x) => Math.abs(x) <= 1),
+      within2_pct: pc((x) => Math.abs(x) <= 2), mae: (e.reduce((a, x) => a + Math.abs(x), 0) / e.length).toFixed(2), samples: manual });
+  }
+  $("metrics").innerHTML = m.has_gt || manual ? `
+    <table class="metric-table"><thead><tr><th>Method</th><th>Accuracy</th><th>Exact</th><th>±1</th><th>±2</th><th>Avg error</th><th>Checks</th></tr></thead><tbody>
+      ${row("Door count (on board)", m.door_onboard)}${row("Cabin headcount", m.headcount)}${manualRow}
+    </tbody></table>
+    ${m.boarded && m.boarded.actual != null ? `<p style="margin:.6rem 0 0">Boardings counted <b>${m.boarded.detected}</b> of <b>${m.boarded.actual}</b> · alightings <b>${m.alighted.detected}</b> of <b>${m.alighted.actual}</b></p>` : ""}
+    <p class="muted" style="margin:.5rem 0 0"><small>Accuracy = 1 − total error ÷ total people. Exact/±1/±2 = share of checked moments where the count was right or within 1–2 people. ${m.processed_frames} frames processed by ${esc(m.detector)} in ${m.seconds}s.</small></p>
+    ${meta.kind === "simulated" ? `<p style="margin:.5rem 0 0"><small>The cabin headcount <b>undercounts when the bus is full</b>: passengers in the back rows are hidden behind the heads in front. That's why the door count is the main figure, as in real automatic passenger counters.</small></p>` : ""}` :
+    `<p class="muted">This clip has no ground truth yet. Pause the video and add a few hand-counted checks below to score it. Boardings detected: ${m.boarded.detected}, alightings: ${m.alighted.detected}.</p>`;
+}
+
+v.addEventListener("timeupdate", update);
+v.addEventListener("seeked", () => { liveCount = null; update(); });
+v.addEventListener("play", () => { liveCount = null; });
+v.addEventListener("loadedmetadata", () => { drawChart(); update(); });
+window.addEventListener("resize", () => { drawChart(); update(); });
+(function tick() { if (!v.paused) update(); requestAnimationFrame(tick); })();
+
+// ----- staff tools
+async function frameBlob() {
+  const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  return new Promise((r) => c.toBlob(r, "image/jpeg", 0.92));
+}
+$("liveBtn").onclick = async () => {
+  v.pause();
+  $("liveOut").textContent = "Detecting…";
+  const fd = new FormData(); fd.append("frame", await frameBlob(), "f.jpg");
+  const d = await api("/api/sim/detect", { method: "POST", body: fd });
+  liveCount = d.count;
+  const g = gtAt(v.currentTime);
+  $("liveOut").innerHTML = `Live detection: <b>${d.count}</b> people in ${d.ms} ms${g ? ` · actual ${g.count}` : ""}`;
+  update();
+  drawOverlay(null, { head_boxes: d.boxes });
+};
+$("rerun").onclick = async () => {
+  try { await api(`/api/sim/${clip.id}/evaluate`, { method: "POST" }); pollJob(clip.id); } catch (e) { ATOBS.toast(e.message, true); }
+};
+async function pollJob(id) {
+  const j = await api(`/api/sim/${id}/job`);
+  $("jobState").textContent = j.status === "running" ? `evaluating… ${j.progress}%` : j.status === "done" ? "done" : j.status === "error" ? "error: " + j.error : "";
+  if (j.status === "running") setTimeout(() => pollJob(id), 2000);
+  else if (j.status === "done") { await loadClips(id); }
+}
+$("verify").onsubmit = async (e) => {
+  e.preventDefault(); v.pause();
+  try {
+    const r = await api(`/api/sim/${clip.id}/verify`, { json: { t: +v.currentTime.toFixed(2), count: +$("vCount").value } });
+    ATOBS.toast(`Saved: camera saw ${r.detected}, you counted ${$("vCount").value}`);
+    await select(clip.id);
+
+  } catch (ex) { ATOBS.toast(ex.message, true); }
+};
+$("up").onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("file", $("upFile").files[0]); fd.append("title", $("upTitle").value); fd.append("camera", $("upCam").value);
+  try {
+    const m = await api("/api/sim/upload", { method: "POST", body: fd });
+    ATOBS.toast("Uploaded, evaluating now");
+    await loadClips(m.id); pollJob(m.id);
+  } catch (ex) { ATOBS.toast(ex.message, true); }
+};
+
+ATOBS.ready.then((u) => { if (u && ["operator", "admin"].includes(u.role)) $("staff").hidden = false; }).catch(() => {});
+loadClips();
+</script>
+</body>
+</html>

@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live headcount demo · ATOBS</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  .drop { border: 2px dashed #b9c9cc; border-radius: 14px; padding: 1.4rem; text-align: center; background: #fff; transition: .15s; }
+  .drop.over { border-color: var(--brand); background: #eef6f6; }
+  .drop b { font-size: 1.1rem; }
+  .stage2 { position: relative; background: #0b1418; border-radius: 14px; overflow: hidden; min-height: 360px; display: grid; place-items: center; }
+  .stage2 video, .stage2 img.media { max-width: 100%; max-height: 70vh; display: block; }
+  .stage2 canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .stage2 .ph { color: #8aa1a8; text-align: center; padding: 2rem; }
+  .count-float { position: absolute; left: 14px; top: 14px; background: rgba(10, 70, 76, .92); color: #fff; border-radius: 14px; padding: .4rem 1rem .5rem; box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+  .count-float .n { font-size: 3rem; font-weight: 900; line-height: 1; }
+  .count-float small { display: block; color: #bfe0e3; font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; }
+  .scan { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: rgba(255,255,255,.15); }
+  .scan i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  .status-line { position: absolute; right: 14px; top: 14px; background: rgba(0,0,0,.6); color: #fff; padding: .3rem .7rem; border-radius: 99px; font-size: .85rem; }
+  .bignum { font-size: 4.2rem; font-weight: 900; line-height: 1; color: var(--brand-2); }
+  .samples { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .samples button { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: .35rem .75rem; font: inherit; font-size: .85rem; cursor: pointer; }
+  .samples button:hover { border-color: var(--brand); }
+  .check-ok { color: #1f6e43; } .check-bad { color: #b3261e; }
+  .demo-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr); gap: 1rem; align-items: start; }
+  @media (max-width: 1000px) { .demo-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body data-page="demo">
+<header id="top"></header>
+<main class="wrap">
+  <div class="row" style="margin-bottom:.4rem"><h1 style="margin:0">Live headcount demo</h1><span class="spacer"></span>
+    <span class="pill" id="det">detector: …</span>
+    <div class="seg" id="modeSeg" title="Accurate also checks zoomed-in parts of the image, so people at the back are found"><button data-m="accurate" class="on">Accurate</button><button data-m="fast">Fast</button></div>
+  </div>
+  <p class="muted" style="margin-top:0">Upload any photo or video of a bus (or any crowd). The system finds every person, counts them and fills the 40-seat bus map. Type the real number to check the accuracy.</p>
+
+  <div class="drop" id="drop">
+    <b>Drop a photo or video here</b> or
+    <label class="btn primary" style="display:inline-flex;margin:0 .3rem">Choose file<input type="file" id="file" accept="image/*,video/*" hidden></label>
+    <div class="muted" style="font-size:.85rem;margin-top:.4rem">Photos: JPG / PNG · Videos: MP4 / WebM / MOV. Best results: camera at the front of the bus looking back, good light.</div>
+    <div class="row" style="justify-content:center;margin-top:.7rem;gap:.8rem">
+      <small class="muted">Sample photos:</small><div class="samples" id="samplePhotos"></div>
+    </div>
+    <div class="row" style="justify-content:center;margin-top:.4rem;gap:.8rem">
+      <small class="muted">Sample videos:</small><div class="samples" id="sampleVideos"></div>
+    </div>
+  </div>
+
+  <div class="demo-grid" style="margin-top:1rem">
+    <div class="stack">
+      <div class="stage2" id="stage">
+        <div class="ph" id="ph">Your photo or video will appear here.</div>
+        <video id="v" playsinline muted preload="auto" hidden></video>
+        <img id="img" class="media" alt="" hidden>
+        <canvas id="ov"></canvas>
+        <div class="count-float" id="cf" hidden><small>People counted</small><div class="n" id="cfn">0</div></div>
+        <div class="status-line" id="sl" hidden></div>
+        <div class="scan" id="scan" hidden><i id="scanBar"></i></div>
+      </div>
+
+      <section class="card" id="vidCtl" hidden>
+        <div class="row">
+          <button class="btn primary" id="analyse">▶ Analyse video</button>
+          <button class="btn" id="live">⏵ Play with live count</button>
+          <button class="btn" id="stop" disabled>■ Stop</button>
+          <label style="margin:0 0 0 .5rem">Every</label>
+          <select id="interval" style="width:auto"><option value="0.5">0.5 s</option><option value="1" selected>1 s</option><option value="2">2 s</option></select>
+          <span class="spacer"></span><small class="muted" id="speed"></small>
+        </div>
+        <small class="muted"><b>Analyse</b> steps through the video and counts every frame it stops on (boxes line up exactly). <b>Play with live count</b> plays at normal speed and keeps counting.</small>
+      </section>
+
+      <section class="card" id="chartCard" hidden>
+        <div class="row"><h3 style="margin:0">Headcount over time</h3><span class="spacer"></span><small class="muted">click a point to see that frame</small></div>
+        <svg id="chart" class="timeline-chart" role="img" aria-label="Headcount over time"></svg>
+      </section>
+    </div>
+
+    <aside class="stack">
+      <section class="card">
+        <div class="row" style="align-items:flex-end">
+          <div><div class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">People counted</div><div class="bignum" id="big">–</div></div>
+          <span class="spacer"></span>
+          <div style="text-align:right"><div class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">Bus occupancy</div><div id="occ" class="occ-badge">–</div></div>
+        </div>
+        <small class="muted" id="where"></small>
+        <div id="seats" style="margin-top:.8rem"></div>
+      </section>
+
+      <section class="card">
+        <h3>Is the count correct?</h3>
+        <form id="vf" class="row">
+          <label for="actual" style="margin:0">Real number of people</label>
+          <input id="actual" type="number" min="0" max="999" style="width:90px" required>
+          <button class="btn primary">Check</button>
+        </form>
+        <div id="vres" style="margin-top:.6rem"></div>
+        <div id="vlist" class="log" style="margin-top:.4rem"></div>
+      </section>
+
+      <section class="card">
+        <h3>Stats</h3>
+        <table><tbody id="stats"><tr><td class="muted">Nothing analysed yet</td></tr></tbody></table>
+      </section>
+    </aside>
+  </div>
+
+  <section class="card" style="margin-top:1rem">
+    <div class="row"><h2 style="margin:0">Demo history</h2><span class="spacer"></span><small id="overall" class="muted"></small></div>
+    <div style="overflow:auto"><table><thead><tr><th>When</th><th>Type</th><th>File</th><th>Mode</th><th>Frames</th><th>Peak</th><th>Average</th><th>Checked accuracy</th></tr></thead><tbody id="hist"></tbody></table></div>
+  </section>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const { api, esc } = ATOBS;
+const $ = (id) => document.getElementById(id);
+const v = $("v"), img = $("img");
+let mode = "accurate", kind = null, fileName = "", results = [], current = null, runId = null, checks = [];
+let busy = false, stopFlag = false, serverJob = null, objUrl = null;
+const grab = document.createElement("canvas");
+
+// ---------- setup
+api("/api/sim/clips").then((d) => ($("det").textContent = "detector: " + d.detector)).catch(() => {});
+$("modeSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b || busy) return; mode = b.dataset.m; $("modeSeg").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); };
+fetch("/demo/samples.json").then((r) => r.json()).then((s) => {
+  $("samplePhotos").innerHTML = s.photos.map((p, i) => `<button type="button" data-p="${i}" title="${esc(p.note)}">${esc(p.title)}</button>`).join("");
+  $("sampleVideos").innerHTML = s.videos.map((p, i) => `<button type="button" data-v="${i}" title="${esc(p.note)}">${esc(p.title)}</button>`).join("");
+  $("samplePhotos").onclick = async (e) => { const b = e.target.closest("[data-p]"); if (!b) return; const p = s.photos[+b.dataset.p]; loadFile(await urlToFile(p.file), p.actual); };
+  $("sampleVideos").onclick = async (e) => { const b = e.target.closest("[data-v]"); if (!b) return; const p = s.videos[+b.dataset.v]; loadFile(await urlToFile(p.file)); };
+});
+async function urlToFile(u) { const b = await (await fetch(u)).blob(); return new File([b], u.split("/").pop(), { type: b.type }); }
+
+const drop = $("drop");
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+$("file").onchange = () => { const f = $("file").files[0]; if (f) loadFile(f); $("file").value = ""; };
+
+// ---------- loading
+function reset() {
+  stopFlag = true;
+  if (serverJob) { api(`/api/demo/video/${serverJob}/stop`, { method: "POST" }).catch(() => {}); serverJob = null; }
+  v.pause();
+  results = []; current = null; runId = null; checks = [];
+  $("vres").innerHTML = ""; $("vlist").innerHTML = ""; $("actual").value = "";
+  $("chartCard").hidden = true; $("cf").hidden = true; $("sl").hidden = true; $("scan").hidden = true;
+  clearOverlay(); show(null);
+}
+
+async function loadFile(f, knownActual) {
+  reset();
+  if (objUrl) URL.revokeObjectURL(objUrl);
+  objUrl = URL.createObjectURL(f);
+  fileName = f.name;
+  $("ph").hidden = true;
+  if (f.type.startsWith("image/") || /\.(jpe?g|png|webp|bmp)$/i.test(f.name)) {
+    kind = "photo";
+    v.hidden = true; $("vidCtl").hidden = true;
+    img.hidden = false; img.src = objUrl;
+    try { await img.decode(); } catch (_) { return fail("This image can't be shown in the browser. Use a JPG or PNG (iPhone HEIC photos need converting)."); }
+    await analysePhoto(knownActual);
+  } else {
+    kind = "video";
+    img.hidden = true; v.hidden = false; $("vidCtl").hidden = false;
+    v.controls = true;
+    v.src = objUrl;
+    v.onerror = () => serverFallback(f);
+    try {
+      await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = rej; setTimeout(() => rej(new Error("timeout")), 8000); });
+      if (!v.videoWidth) throw new Error("no video track");
+      status(`Video loaded · ${v.duration.toFixed(1)} s · press Analyse`);
+      drawChart();
+    } catch (_) { serverFallback(f); }
+  }
+}
+
+function fail(msg) { $("ph").hidden = false; $("ph").textContent = msg; img.hidden = true; v.hidden = true; ATOBS.toast(msg, true); }
+function status(t) { $("sl").hidden = !t; $("sl").textContent = t || ""; }
+
+// ---------- detection
+function frameBlob(el) {
+  const w = el.videoWidth || el.naturalWidth, h = el.videoHeight || el.naturalHeight;
+  const s = Math.min(1, 1600 / Math.max(w, h));
+  grab.width = Math.round(w * s); grab.height = Math.round(h * s);
+  grab.getContext("2d").drawImage(el, 0, 0, grab.width, grab.height);
+  return new Promise((r) => grab.toBlob(r, "image/jpeg", 0.9));
+}
+async function detect(el) {
+  const fd = new FormData();
+  fd.append("frame", await frameBlob(el), "frame.jpg");
+  fd.append("mode", mode);
+  return api("/api/demo/detect", { method: "POST", body: fd });
+}
+
+async function analysePhoto(knownActual) {
+  busy = true; status("Counting people…");
+  try {
+    const r = await detect(img);
+    current = { t: null, ...r };
+    results = [current];
+    show(current); drawBoxes(current.boxes);
+    status(`Counted in ${r.ms} ms · ${r.mode}`);
+    const saved = await api("/api/demo/runs", { json: { kind: "photo", filename: fileName, mode, frames: 1, max_count: r.count, avg_count: r.count, last_count: r.count } });
+    runId = saved.id;
+    if (knownActual != null) { $("actual").value = knownActual; $("vres").innerHTML = `<small class="muted">Sample photo: the real number is <b>${knownActual}</b>. Press Check.</small>`; }
+    loadHistory();
+  } catch (e) { ATOBS.toast(e.message, true); status(""); }
+  busy = false;
+}
+
+function seek(t) {
+  return new Promise((res) => {
+    const done = () => { clearTimeout(to); res(); };
+    const to = setTimeout(done, 3000);
+    v.addEventListener("seeked", done, { once: true });
+    v.currentTime = t;
+  });
+}
+
+function setBusy(b) {
+  busy = b;
+  $("analyse").disabled = b; $("live").disabled = b; $("stop").disabled = !b;
+  $("scan").hidden = !b;
+  v.controls = !b;
+}
+
+async function startRun() {
+  const saved = await api("/api/demo/runs", { json: { kind: "video", filename: fileName, mode, frames: 0 } });
+  runId = saved.id;
+}
+function saveRun() {
+  if (!runId || !results.length) return;
+  const c = results.map((r) => r.count);
+  api(`/api/demo/runs/${runId}`, { method: "PATCH", json: { kind: "video", frames: c.length, max_count: Math.max(...c), avg_count: c.reduce((a, b) => a + b, 0) / c.length, last_count: c[c.length - 1] } }).then(loadHistory).catch(() => {});
+}
+
+$("analyse").onclick = async () => {
+  if (busy || kind !== "video") return;
+  const step = +$("interval").value;
+  stopFlag = false; setBusy(true); v.pause();
+  results = []; await startRun();
+  const t0 = performance.now();
+  for (let t = 0; t <= v.duration + 0.001 && !stopFlag; t += step) {
+    await seek(Math.min(t, Math.max(0, v.duration - 0.05)));
+    status(`Analysing ${t.toFixed(1)} / ${v.duration.toFixed(1)} s`);
+    $("scanBar").style.width = `${(100 * t) / v.duration}%`;
+    try {
+      const r = await detect(v);
+      current = { t: +t.toFixed(2), ...r };
+      results.push(current);
+      show(current); drawBoxes(current.boxes); drawChart();
+      $("speed").textContent = `${r.ms} ms per frame`;
+    } catch (e) { ATOBS.toast(e.message, true); break; }
+  }
+  setBusy(false);
+  status(`${stopFlag ? "Stopped" : "Done"} · ${results.length} frames in ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+  saveRun();
+};
+
+$("live").onclick = async () => {
+  if (busy || kind !== "video") return;
+  stopFlag = false; setBusy(true);
+  results = []; await startRun();
+  if (v.ended) v.currentTime = 0;
+  v.controls = false;
+  await v.play();
+  let n = 0;
+  while (!stopFlag && !v.ended) {
+    const t = v.currentTime;
+    try {
+      const r = await detect(v);
+      current = { t: +t.toFixed(2), ...r };
+      results.push(current);
+      show(current); drawBoxes(current.boxes, true); drawChart();
+      $("scanBar").style.width = `${(100 * v.currentTime) / v.duration}%`;
+      status(`Live · ${v.currentTime.toFixed(1)} s`);
+      $("speed").textContent = `${r.ms} ms per frame`;
+      if (++n % 10 === 0) saveRun();
+    } catch (e) { ATOBS.toast(e.message, true); break; }
+  }
+  v.pause(); setBusy(false);
+  status(`${stopFlag ? "Stopped" : "Done"} · ${results.length} frames counted`);
+  saveRun();
+};
+$("stop").onclick = () => { stopFlag = true; if (serverJob) api(`/api/demo/video/${serverJob}/stop`, { method: "POST" }).catch(() => {}); };
+
+// videos the browser can't play: process on the server and stream the results back
+async function serverFallback(f) {
+  if (serverJob) return;
+  v.hidden = true; $("vidCtl").hidden = true; img.hidden = false; img.removeAttribute("src");
+  status("This browser can't play this video format · processing on the server…");
+  setBusy(true);
+  const fd = new FormData(); fd.append("file", f); fd.append("interval", $("interval").value); fd.append("mode", mode);
+  let job;
+  try { job = await api("/api/demo/video", { method: "POST", body: fd }); }
+  catch (e) { setBusy(false); return fail(e.message); }
+  serverJob = job.id; results = []; await startRun();
+  let since = 0;
+  while (true) {
+    const st = await api(`/api/demo/video/${job.id}?since=${since}`);
+    for (const r of st.results) {
+      current = r; results.push(r);
+      img.src = r.image; await img.decode().catch(() => {});
+      show(r); drawBoxes(r.boxes); drawChart();
+      status(`Analysing ${r.t.toFixed(1)}${st.duration ? " / " + st.duration.toFixed(1) : ""} s`);
+      if (st.duration) $("scanBar").style.width = `${(100 * r.t) / st.duration}%`;
+    }
+    since = st.total;
+    if (st.status !== "running") { status(st.status === "error" ? "Error: " + st.error : `Done · ${results.length} frames`); break; }
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  serverJob = null; setBusy(false); saveRun();
+}
+
+// ---------- display
+function show(r) {
+  const n = r ? r.count : null;
+  $("big").textContent = n ?? "–";
+  $("cf").hidden = n == null; $("cfn").textContent = n ?? 0;
+  const pct = n == null ? null : Math.round((100 * n) / 40);
+  $("occ").className = "occ-badge " + (pct == null ? "" : ATOBS.occClass(pct));
+  $("occ").innerHTML = pct == null ? "–" : `${pct}<small>%</small>`;
+  $("where").textContent = r ? (r.t != null ? `Frame at ${r.t.toFixed(1)} s · ` : "") + `${n > 40 ? `${n - 40} would be standing · ` : ""}counted in ${r.ms} ms (${r.mode || mode})` : "";
+  ATOBS.seatsReady.then(() => ATOBS.seatMap($("seats"), { occupied: Math.min(40, n || 0), standing: Math.max(0, (n || 0) - 40), seed: fileName || "demo", title: "40-seat BMTC bus" }));
+  // stats
+  if (!results.length) { $("stats").innerHTML = '<tr><td class="muted">Nothing analysed yet</td></tr>'; return; }
+  const c = results.map((x) => x.count), ms = results.map((x) => x.ms);
+  $("stats").innerHTML = `<tr><td>File</td><td><b>${esc(fileName)}</b></td></tr>
+    <tr><td>Frames analysed</td><td>${c.length}</td></tr>
+    ${c.length > 1 ? `<tr><td>Peak headcount</td><td>${Math.max(...c)}</td></tr><tr><td>Average headcount</td><td>${Math.round(c.reduce((a, b) => a + b, 0) / c.length)}</td></tr>` : ""}
+    <tr><td>Detection time</td><td>${Math.round(ms.reduce((a, b) => a + b, 0) / ms.length)} ms per frame</td></tr>
+    <tr><td>Mode</td><td>${mode === "accurate" ? "Accurate (full image + zoomed tiles)" : "Fast (single pass)"}</td></tr>`;
+}
+
+function mediaEl() { return kind === "video" && !v.hidden ? v : img; }
+function viewBox() {
+  const c = $("ov"), el = mediaEl();
+  const sr = $("stage").getBoundingClientRect(), er = el.getBoundingClientRect();
+  // the media element is sized by CSS (max-width/height); boxes map onto its rendered rectangle
+  return { x: er.left - sr.left, y: er.top - sr.top, w: er.width, h: er.height };
+}
+function clearOverlay() { const c = $("ov"); c.getContext("2d").clearRect(0, 0, c.width, c.height); }
+function drawBoxes(boxes, live) {
+  const c = $("ov"), ctx = c.getContext("2d");
+  const W = c.clientWidth, H = c.clientHeight;
+  c.width = W * devicePixelRatio; c.height = H * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const b = viewBox();
+  const fs = Math.max(11, Math.min(16, b.w / 60));
+  (boxes || []).forEach((bx, i) => {
+    const x = b.x + bx[0] * b.w, y = b.y + bx[1] * b.h, w = (bx[2] - bx[0]) * b.w, h = (bx[3] - bx[1]) * b.h;
+    ctx.strokeStyle = live ? "rgba(79,209,197,.9)" : "#4fd1c5"; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+    const tag = String(i + 1);
+    ctx.font = `bold ${fs}px system-ui`;
+    const tw = ctx.measureText(tag).width + 8;
+    ctx.fillStyle = "#f2a900"; ctx.fillRect(x, y - fs - 4 < 0 ? y : y - fs - 4, tw, fs + 4);
+    ctx.fillStyle = "#12232b"; ctx.fillText(tag, x + 4, (y - fs - 4 < 0 ? y : y - fs - 4) + fs);
+  });
+}
+window.addEventListener("resize", () => current && drawBoxes(current.boxes));
+v.addEventListener("seeked", () => {
+  if (busy || !results.length) return;
+  const r = nearestResult(v.currentTime);
+  if (r && Math.abs(r.t - v.currentTime) < 0.15) { current = r; show(r); drawBoxes(r.boxes); } else clearOverlay();
+});
+v.addEventListener("play", () => { if (!busy) clearOverlay(); });
+function nearestResult(t) { return results.reduce((b, r) => (Math.abs(r.t - t) < Math.abs((b ? b.t : 1e9) - t) ? r : b), null); }
+
+// ---------- chart
+let cx = null;
+function drawChart() {
+  if (kind === "photo") return;
+  $("chartCard").hidden = false;
+  const svg = $("chart"), W = svg.clientWidth || 600, H = 160, P = { l: 30, r: 8, t: 8, b: 18 };
+  const dur = (kind === "video" && !v.hidden ? v.duration : 0) || (results.length ? results[results.length - 1].t : 1) || 1;
+  const maxY = Math.max(4, ...results.map((r) => r.count)) + 1;
+  const x = (t) => P.l + ((W - P.l - P.r) * t) / dur, y = (n) => P.t + (H - P.t - P.b) * (1 - n / maxY);
+  cx = { x, dur, W, P };
+  let g = "";
+  for (let k = 0; k <= maxY; k += Math.ceil(maxY / 4)) g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y(k)}" y2="${y(k)}" stroke="#eef2f3"/><text x="${P.l - 4}" y="${y(k) + 3}" text-anchor="end">${k}</text>`;
+  const pts = [...results].sort((a, b) => a.t - b.t);
+  if (pts.length) g += `<path class="det" style="stroke-width:2.5" d="M${pts.map((p) => `${x(p.t).toFixed(1)},${y(p.count).toFixed(1)}`).join("L")}"/>` +
+    pts.map((p) => `<circle cx="${x(p.t)}" cy="${y(p.count)}" r="3.5" fill="#e04a59" data-t="${p.t}" style="cursor:pointer"><title>${p.t.toFixed(1)} s: ${p.count} people</title></circle>`).join("");
+  checks.filter((c) => c.t != null).forEach((c) => (g += `<circle cx="${x(c.t)}" cy="${y(c.actual)}" r="5" fill="none" stroke="#12232b" stroke-width="2"><title>You counted ${c.actual}</title></circle>`));
+  for (let s = 0; s <= dur; s += Math.max(1, Math.ceil(dur / 8))) g += `<text x="${x(s)}" y="${H - 4}" text-anchor="middle">${s}s</text>`;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = g;
+}
+$("chart").onclick = async (e) => {
+  if (busy || !results.length || !cx) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const t = ((e.clientX - r.left) * (cx.W / r.width) - cx.P.l) / (cx.W - cx.P.l - cx.P.r) * cx.dur;
+  const hit = nearestResult(t);
+  if (!hit) return;
+  current = hit;
+  if (hit.image) { img.src = hit.image; await img.decode().catch(() => {}); }
+  else if (!v.hidden) { v.pause(); await seek(hit.t); }
+  show(hit); drawBoxes(hit.boxes);
+};
+
+// ---------- verification
+$("vf").onsubmit = async (e) => {
+  e.preventDefault();
+  if (!current || !runId) return ATOBS.toast("Count a photo or video frame first", true);
+  const actual = +$("actual").value, det = current.count;
+  const acc = actual ? Math.max(0, Math.round(100 * (1 - Math.abs(det - actual) / actual))) : det === 0 ? 100 : 0;
+  try {
+    const r = await api(`/api/demo/runs/${runId}/checks`, { json: { t: current.t, detected: det, actual } });
+    checks = r.checks;
+    const ok = Math.abs(det - actual) <= 1;
+    $("vres").innerHTML = `<div class="occ-badge ${ok ? "occ-ok" : acc >= 80 ? "occ-warn" : "occ-bad"}" style="font-size:2rem">${acc}<small>% accurate</small></div>
+      <div>Detected <b>${det}</b> · real <b>${actual}</b> · ${det === actual ? "<b class='check-ok'>exact match ✓</b>" : `off by ${Math.abs(det - actual)}`}</div>`;
+    const s = r.summary;
+    $("vlist").innerHTML = checks.map((c) => `<div>${c.t != null ? `<span class="mono muted">${(+c.t).toFixed(1)} s</span> ` : ""}detected ${c.detected} · real ${c.actual} <b class="${c.detected === c.actual ? "check-ok" : Math.abs(c.detected - c.actual) <= 1 ? "" : "check-bad"}">${c.detected === c.actual ? "✓" : (c.detected > c.actual ? "+" : "") + (c.detected - c.actual)}</b></div>`).join("") +
+      (checks.length > 1 ? `<div><b>Overall: ${s.accuracy_pct}% accurate</b> over ${s.checks} checks · exact ${s.exact_pct}% · within ±1 ${s.within1_pct}%</div>` : "");
+    drawChart(); loadHistory();
+  } catch (ex) { ATOBS.toast(ex.message, true); }
+};
+
+// ---------- history
+async function loadHistory() {
+  const d = await api("/api/demo/runs");
+  $("overall").textContent = d.overall ? `All checks: ${d.overall.accuracy_pct}% accurate over ${d.overall.checks} checks` : "";
+  $("hist").innerHTML = d.items.map((r) => `<tr><td><small>${ATOBS.fmt(r.created_at)}</small></td><td>${r.kind}</td><td><small>${esc(r.filename || "")}</small></td><td>${esc(r.mode || "")}</td>
+    <td>${r.frames}</td><td>${r.max_count}</td><td>${Math.round(r.avg_count)}</td>
+    <td>${r.summary ? `<b>${r.summary.accuracy_pct}%</b> <small class="muted">(${r.summary.checks} check${r.summary.checks > 1 ? "s" : ""})</small>` : '<small class="muted">not checked</small>'}</td></tr>`).join("")
+    || '<tr><td colspan="8" class="empty">No demos yet: upload a photo or video above.</td></tr>';
+}
+loadHistory();
+</script>
+</body>
+</html>

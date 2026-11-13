@@ -1,0 +1,13 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+PyJWT>=2.8
+numpy>=1.26
+pandas>=2.1
+openpyxl>=3.1
+scikit-learn>=1.4
+joblib>=1.3
+opencv-python>=4.9
+# Person detector for camera passenger counting (pulls in PyTorch).
+# If it can't be installed, the app falls back to OpenCV's HOG detector automatically.
+ultralytics>=8.1

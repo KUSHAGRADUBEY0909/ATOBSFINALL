@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My emergency alerts · ATOBS</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="alerts">
+<header id="top"></header>
+<main class="wrap">
+  <div class="split">
+    <section class="card">
+      <h1>Track an emergency alert</h1>
+      <form id="trackForm" class="row" style="margin:.6rem 0 1rem">
+        <input id="ref" placeholder="Reference, e.g. EM-261112-A1B2C3" style="flex:1" class="mono">
+        <button class="btn primary">Track</button>
+      </form>
+      <div id="tracked"><div class="muted">Enter the reference shown after you sent an alert.</div></div>
+    </section>
+    <aside>
+      <section class="card">
+        <h2 id="listTitle">Your alerts</h2>
+        <div id="mine"><div class="empty">Loading…</div></div>
+      </section>
+      <section class="card">
+        <h3>Need help right now?</h3>
+        <p class="muted">Use the red EMERGENCY button (bottom-left) or call <a href="tel:112">112</a>.</p>
+        <button class="btn danger" onclick="ATOBS.openEmergency && ATOBS.openEmergency()">Report an emergency</button>
+      </section>
+    </aside>
+  </div>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const { api, esc } = ATOBS;
+const $ = (id) => document.getElementById(id);
+let timer;
+
+async function track(ref) {
+  clearTimeout(timer);
+  try {
+    const a = await api(`/api/emergency/track/${encodeURIComponent(ref)}`);
+    $("tracked").innerHTML = `<div class="row"><h2 style="margin:0">${esc(a.category_label)}</h2><span class="spacer"></span>
+        <span class="pill sev-${a.severity}">${a.severity}</span> <span class="pill st-${a.status}">${a.status.replace("_", " ")}</span></div>
+      <small class="mono">${esc(a.reference)}${a.route_id ? ` · route ${esc(a.route_id)}` : ""}${a.bus_registration ? ` · ${esc(a.bus_registration)}` : ""}</small>
+      <h3 style="margin-top:1rem">Progress</h3>
+      <div class="timeline">${a.updates.map((u) => `<div><b>${esc((u.status || "update").replace("_", " "))}</b> <small>${ATOBS.fmt(u.created_at)}</small>${u.note ? `<div>${esc(u.note)}</div>` : ""}</div>`).join("")}</div>
+      <small class="muted">This page refreshes automatically.</small>`;
+    history.replaceState(null, "", `?ref=${encodeURIComponent(a.reference)}`);
+    if (!["resolved", "false_alarm"].includes(a.status)) timer = setTimeout(() => track(ref), 8000);
+  } catch (e) { $("tracked").innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+}
+$("trackForm").onsubmit = (e) => { e.preventDefault(); const r = $("ref").value.trim(); if (r) track(r); };
+
+function item(a) {
+  return `<a class="list-item" href="?ref=${encodeURIComponent(a.reference)}" data-ref="${esc(a.reference)}">
+    <div style="flex:1"><b>${esc(a.category_label)}</b><br><small class="mono">${esc(a.reference)}</small></div>
+    <span class="pill st-${a.status}">${a.status.replace("_", " ")}</span></a>`;
+}
+
+ATOBS.ready.then(async (u) => {
+  let items = [];
+  if (u) items = (await api("/api/emergency/mine")).items;
+  else {
+    $("listTitle").textContent = "Alerts sent from this device";
+    let refs = [];
+    try { refs = JSON.parse(localStorage.getItem("atobs_alerts") || "[]"); } catch (_) { /* no storage */ }
+    for (const r of refs) { try { items.push(await api(`/api/emergency/track/${encodeURIComponent(r)}`)); } catch (_) { /* gone */ } }
+  }
+  $("mine").innerHTML = items.map(item).join("") || '<div class="empty">No alerts yet.</div>';
+  $("mine").onclick = (e) => { const a = e.target.closest("[data-ref]"); if (a) { e.preventDefault(); $("ref").value = a.dataset.ref; track(a.dataset.ref); } };
+  const ref = ATOBS.qs("ref");
+  if (ref) { $("ref").value = ref; track(ref); }
+});
+</script>
+</body>
+</html>

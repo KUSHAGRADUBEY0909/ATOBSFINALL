@@ -1,0 +1,143 @@
+route_id,field,old,new,reason,source
+CHAKRA-2,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+CHAKRA-2,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+7D,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+7E,destination,Domlur,Domlur TTMC Bus Stand,name unified with verified terminal,latlong.net POI 'Domlur Bus Station'
+MBS-8,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+BC-9D,origin,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+MF-9,origin,Domlur,Domlur TTMC Bus Stand,name unified with verified terminal,latlong.net POI 'Domlur Bus Station'
+12,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+12E,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+13,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+14B,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+25,destination,Majestic,Kempegowda Bus Station,name unified with verified terminal,latlong.net POI (OSM) / Wikipedia 'Kempegowda Bus Station'
+65B,destination,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+75H,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+133E,destination,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+176A,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+201A,destination,Domlur,Domlur TTMC Bus Stand,name unified with verified terminal,latlong.net POI 'Domlur Bus Station'
+201C,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+201MJ,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+201S,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+210CD,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+210T,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+210T,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+210V,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+210V,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+212M,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+214K,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+215AB,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+215BB,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+215W,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+215W,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+215Y,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+215Y,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+215ZA,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+222M,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+226H,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+242AA,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+248AN,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+248BA,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+248N,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+248P,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+248Z,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+287A,origin,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+287M,destination,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+289L,destination,YELAHANKA,Yelahanka,name unified with verified terminal,Yelahanka town coordinates
+289R,destination,YELAHANKA,Yelahanka,name unified with verified terminal,Yelahanka town coordinates
+306J,destination,Domlur,Domlur (Dommaluru),"same name as Domlur TTMC Bus Stand but 25 km away and consistent with the route's own stops: a different place, label disambiguated",latlong.net POI 'Domlur Bus Station'
+334E,origin,Domlur,Domlur TTMC Bus Stand,name unified with verified terminal,latlong.net POI 'Domlur Bus Station'
+363A,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+369M,origin,Kempegowda Bus Station,Vijayanagara TTMC,"route is labelled 'Kempegowda Bus Station' but its stop list starts at 'Vijayanagara TTMC', 4.3 km from the verified Kempegowda Bus Station; label corrected to the actual stop",latlong.net POI (OSM) / Wikipedia 'Kempegowda Bus Station'
+374C,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+375D,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+378F,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+400,destination,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+401MD,destination,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+401Q,destination,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+410A,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+410F,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+410G,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+410M,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+414,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+500,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+500,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+500A,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+500A,destination,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+500AB,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+500AB,destination,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+500CA,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+500L,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+501,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+501,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+501A,destination,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+501N,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+MP-501A,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+MP-501A,destination,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+502E,destination,Hebbala,Hebbala Bridge,name unified with verified terminal,latlong.net POI 'Hebbal Bus Station'
+506,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+510A,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+510A,destination,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+600,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+600,destination,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+600A,origin,MCTC Bus Stand,Mysore Road Satellite Bus Station,name unified with verified terminal,Wikipedia 'Mysuru Road Bus Station'
+600C,origin,Banashankari Bus Station,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+600CA,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+600CF,origin,BANASHANKARI TTMC,Banashankari TTMC,name unified with verified terminal,latlong.net POI 'Banashankari TTMC'; Wikipedia lists 'Banashankari Bus Station' as the same place
+266,origin_stop,STOP_03774,STOP_00475,terminal was 3.5 km from the route's next stop; other routes place 'Hesaraghatta Village' 0.9 km from it — re-pointed to the consensus stop,consistency check across routes
+317Y,destination_stop,STOP_04741,STOP_00419,terminal was 24.8 km from the route's next stop; other routes place 'Govinda Pura' 0.8 km from it — re-pointed to the consensus stop,consistency check across routes
+317YE,destination_stop,STOP_04741,STOP_00419,terminal was 24.8 km from the route's next stop; other routes place 'Govinda Pura' 0.8 km from it — re-pointed to the consensus stop,consistency check across routes
+*,terminal_name,BTM Layout Bus Stop,BTM Layout,name variant merged (2 route ends),name normalisation
+*,terminal_name,MGRoad,MG Road,name variant merged (1 route ends),name normalisation
+*,terminal_name,Sarjapura,Sarjapura Bus Stand,name variant merged (2 route ends),name normalisation
+*,terminal_name,Kalyana Nagara,Kalyananagara Bus Stand,name variant merged (1 route ends),name normalisation
+*,terminal_name,HSR BDA COMPLEX,HSR Bda Complex,name variant merged (2 route ends),name normalisation
+*,terminal_name,Jambu Savari Dinne,Jambusavari dinne,name variant merged (2 route ends),name normalisation
+*,terminal_name,NAGAVARA JUNCTION,Nagavara Junction,name variant merged (1 route ends),name normalisation
+*,terminal_name,Vijayanagara,Vijayanagara TTMC,name variant merged (2 route ends),name normalisation
+*,terminal_name,YPR RMC,Ypr Rmc,name variant merged (1 route ends),name normalisation
+*,terminal_name,Anekal Bus Stand,Anekal,name variant merged (2 route ends),name normalisation
+*,terminal_name,DASANAPURA,Dasanapura,name variant merged (1 route ends),name normalisation
+*,terminal_name,NARASAPURA,Narasapura,name variant merged (2 route ends),name normalisation
+*,terminal_name,Yeshwanthpura,Yeshwanthpura TTMC,name variant merged (9 route ends),name normalisation
+*,terminal_name,HAL Main gate,HAL Main Gate,name variant merged (1 route ends),name normalisation
+*,terminal_name,Neelasandra,Neela sandra,name variant merged (3 route ends),name normalisation
+*,terminal_name,KAVERI NAGARA,Kaveri Nagara,name variant merged (1 route ends),name normalisation
+*,terminal_name,Madiwala Market,Madiwala MARKET,name variant merged (1 route ends),name normalisation
+*,terminal_name,TAYAPPANA DODDI,Tayappana Doddi,name variant merged (1 route ends),name normalisation
+*,terminal_name,KADUJAKKASANDRA,Kadujakkasandra,name variant merged (1 route ends),name normalisation
+*,terminal_name,Tavarekere Magadi Road,Tavare Kere Magadi Road,name variant merged (1 route ends),name normalisation
+*,terminal_name,Doddamarana Halli,Doddamaranahalli,name variant merged (1 route ends),name normalisation
+*,terminal_name,MUKTHINAGA TEMPLE CROSS,Mukthinaga Temple Cross,name variant merged (1 route ends),name normalisation
+*,terminal_name,MATTHAHALLI,Matthahalli,name variant merged (4 route ends),name normalisation
+*,terminal_name,DASARAHALLI,Dasarahalli,name variant merged (3 route ends),name normalisation
+*,terminal_name,SHAMPURA,Shampura,name variant merged (1 route ends),name normalisation
+*,terminal_name,RAILWAY GATE SHAMPURA,Railway Gate Shampura,name variant merged (2 route ends),name normalisation
+*,terminal_name,HUNASOORU,Hunasooru,name variant merged (2 route ends),name normalisation
+*,terminal_name,KR Puram,K R Puram,name variant merged (7 route ends),name normalisation
+*,terminal_name,KODIHALLI,Kodihalli,name variant merged (1 route ends),name normalisation
+*,terminal_name,Bommana Bande,Bommanabande,name variant merged (1 route ends),name normalisation
+*,terminal_name,Banara halli,Banarahalli,name variant merged (1 route ends),name normalisation
+*,terminal_name,PURA,Pura,name variant merged (1 route ends),name normalisation
+*,terminal_name,HARSNAHALLI,Harsnahalli,name variant merged (1 route ends),name normalisation
+*,terminal_name,CHIMANDAHALLI,Chimandahalli,name variant merged (1 route ends),name normalisation
+*,terminal_name,DODDANALLURAHALLI,Doddanallurahalli,name variant merged (1 route ends),name normalisation
+*,terminal_name,DODDATHAGGALI,Doddathaggali,name variant merged (1 route ends),name normalisation
+*,terminal_name,NAGAGONDANAHALLI,Nagagondanahalli,name variant merged (3 route ends),name normalisation
+*,terminal_name,GANDHIPURA,Gandhipura,name variant merged (2 route ends),name normalisation
+*,terminal_name,HULLAHALLI,Hullahalli,name variant merged (1 route ends),name normalisation
+*,terminal_name,Hongasandra mico layout,Hongasandra Mico Layout,name variant merged (1 route ends),name normalisation
+*,terminal_name,JJN THIMMAREDDY LAYOUT,Jjn Thimmareddy Layout,name variant merged (1 route ends),name normalisation
+*,terminal_name,DODDANAGAMANGALA,Doddanagamangala,name variant merged (2 route ends),name normalisation
+*,terminal_name,CHIKKANAGAMANGALA,Chikkanagamangala,name variant merged (1 route ends),name normalisation
+*,terminal_name,DODDA THOGOOR,Dodda Thogoor,name variant merged (1 route ends),name normalisation
+*,terminal_name,Jigani Bus Stand,Jigani,name variant merged (1 route ends),name normalisation
+*,terminal_name,AECS,Aecs,name variant merged (1 route ends),name normalisation
+*,terminal_name,KAMASANDRA,Kamasandra,name variant merged (1 route ends),name normalisation
+*,terminal_name,MARSUR,Marsur,name variant merged (1 route ends),name normalisation
+*,terminal_name,HELLELLIGE,Hellellige,name variant merged (1 route ends),name normalisation
+*,terminal_name,Shanubhoganahalli,Shanubhogana Halli,name variant merged (1 route ends),name normalisation
+*,terminal_name,THAVATAHALLI,Thavatahalli,name variant merged (1 route ends),name normalisation
+*,terminal_name,SOLURU,Soluru,name variant merged (1 route ends),name normalisation
+*,terminal_name,UMMALU,Ummalu,name variant merged (1 route ends),name normalisation
+*,terminal_name,ITPL,Itpl,name variant merged (1 route ends),name normalisation

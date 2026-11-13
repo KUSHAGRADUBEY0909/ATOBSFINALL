@@ -1,0 +1,56 @@
+{
+ "photos": [
+  {
+   "file": "/demo/walking_people.jpg",
+   "title": "People walking in (real)",
+   "actual": 3,
+   "note": "Real footage: Intel face-demographics-walking-and-pause.mp4"
+  },
+  {
+   "file": "/demo/entrance_group.jpg",
+   "title": "Group at entrance (real)",
+   "actual": 3,
+   "note": "Real footage: Intel people-detection.mp4"
+  },
+  {
+   "file": "/demo/seated_rows.jpg",
+   "title": "Seated rows (real)",
+   "actual": 4,
+   "note": "Real footage: Intel classroom.mp4"
+  },
+  {
+   "file": "/demo/bus_half_sim.jpg",
+   "title": "Half-full bus, 21 people (simulated)",
+   "actual": 21,
+   "note": "Simulated cabin, front camera"
+  },
+  {
+   "file": "/demo/bus_full_sim.jpg",
+   "title": "Packed bus, 44 people (simulated, hardest case)",
+   "actual": 44,
+   "note": "40 seated + 4 standing. Back rows are hidden behind heads in front, so a single front camera undercounts; see Camera simulation for the door-count method."
+  }
+ ],
+ "videos": [
+  {
+   "file": "/demo/walking_towards_camera.mp4",
+   "title": "People walking towards camera (real)",
+   "note": "Like passengers boarding: 0-3 people at a time"
+  },
+  {
+   "file": "/sim/real_classroom.mp4",
+   "title": "Seated rows, front camera (real)",
+   "note": "4 people throughout"
+  },
+  {
+   "file": "/sim/real_entrance.mp4",
+   "title": "Entrance, ceiling camera (real)",
+   "note": "0-3 people"
+  },
+  {
+   "file": "/sim/bus_cabin_sim.mp4",
+   "title": "Bus cabin (simulated)",
+   "note": "Fills up to 44 passengers and empties over 9 stops"
+  }
+ ]
+}

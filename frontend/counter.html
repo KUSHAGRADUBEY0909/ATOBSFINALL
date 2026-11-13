@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passenger counter · ATOBS</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="counter" data-role="operator,admin">
+<header id="top"></header>
+<main class="wrap">
+  <div class="row" style="margin-bottom:1rem">
+    <h1 style="margin:0">Camera passenger counter</h1><span class="spacer"></span>
+    <span class="pill" id="detPill">detector: …</span>
+  </div>
+
+  <div class="split">
+    <div class="stack">
+      <section class="card">
+        <div class="grid g3">
+          <div><label for="bus">Bus</label><select id="bus"></select></div>
+          <div><label>Camera source</label>
+            <div class="seg" id="srcSeg"><button data-s="webcam" class="on" type="button">Webcam</button><button data-s="video" type="button">Video file</button><button data-s="photo" type="button">Photo</button></div>
+          </div>
+          <div id="fileBox" hidden><label for="file">File</label><input type="file" id="file" accept="video/*,image/*"></div>
+        </div>
+        <div class="row" style="margin-top:.9rem">
+          <button class="btn primary" id="startBtn">▶ Start counting</button>
+          <button class="btn" id="stopBtn" disabled>■ Stop</button>
+          <label class="check" style="margin:0"><input type="checkbox" id="resetOnboard"> Start from empty bus</label>
+          <span class="spacer"></span><small id="fps" class="muted"></small>
+        </div>
+      </section>
+
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <img id="still" class="still" hidden alt="">
+        <canvas id="overlay"></canvas>
+        <div class="placeholder" id="ph">Choose a bus and camera source, then press <b>Start counting</b>.<br>Point the camera at the door so people cross the yellow line when they board.</div>
+      </div>
+
+      <section class="card">
+        <div class="grid g3">
+          <div><label for="linePos">Counting line position <b id="linePosLbl">50%</b></label><input type="range" id="linePos" min="5" max="95" value="50"></div>
+          <div><label>Line orientation</label><div class="seg" id="oriSeg"><button data-o="horizontal" class="on" type="button">Horizontal</button><button data-o="vertical" type="button">Vertical</button></div></div>
+          <div><label>Boarding direction</label><button class="btn" id="flipBtn" type="button" style="width:100%">⇅ <span id="dirLbl">Down / right = IN</span></button></div>
+        </div>
+        <small class="muted">Tip: click on the video to move the line there.</small>
+      </section>
+    </div>
+
+    <aside class="stack">
+      <div class="big-counters">
+        <div class="c in"><div class="v" id="cIn">0</div><small>Boarded</small></div>
+        <div class="c out"><div class="v" id="cOut">0</div><small>Alighted</small></div>
+        <div class="c on"><div class="v" id="cOn">0</div><small>On board</small></div>
+        <div class="c"><div class="v" id="cFrame">0</div><small>In view</small></div>
+      </div>
+      <section class="card">
+        <div class="row"><b>Occupancy</b><span class="spacer"></span><span id="occPct" class="occ-badge">–</span></div>
+        <small id="occLbl" class="muted">–</small>
+        <div id="occSeats" style="margin-top:.6rem"></div>
+        <small id="fcCompare" class="muted"></small>
+        <div class="row" style="margin-top:.7rem">
+          <small>Manual correction</small><span class="spacer"></span>
+          <button class="btn sm" id="minus" disabled>−1</button><button class="btn sm" id="plus" disabled>+1</button>
+        </div>
+      </section>
+      <section class="card">
+        <label for="stop">Current stop</label>
+        <div class="row"><select id="stop" style="flex:1" disabled></select><button class="btn sm" id="nextStop" disabled>Next ▸</button></div>
+        <small class="muted">Boardings are logged against this stop and shown on the live map.</small>
+      </section>
+      <section class="card">
+        <h3>Event log</h3>
+        <div class="log" id="log"><div class="muted">No crossings yet.</div></div>
+      </section>
+    </aside>
+  </div>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const { api, esc } = ATOBS;
+const $ = (id) => document.getElementById(id);
+let buses = [], session = null, running = false, src = "webcam", stream = null, last = null;
+let line = { pos: 0.5, orientation: "horizontal", entry_direction: 1 };
+const grab = document.createElement("canvas");
+
+function setSeg(seg, attr, val) { seg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset[attr] === val)); }
+
+$("srcSeg").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b || running) return;
+  src = b.dataset.s; setSeg($("srcSeg"), "s", src);
+  $("fileBox").hidden = src === "webcam";
+  $("file").accept = src === "photo" ? "image/*" : "video/*";
+  $("startBtn").textContent = src === "photo" ? "Count people in photo" : "▶ Start counting";
+};
+$("oriSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; line.orientation = b.dataset.o; setSeg($("oriSeg"), "o", line.orientation); updDir(); pushLine(); };
+$("linePos").oninput = () => { line.pos = $("linePos").value / 100; $("linePosLbl").textContent = `${$("linePos").value}%`; draw(); };
+$("linePos").onchange = pushLine;
+$("flipBtn").onclick = () => { line.entry_direction *= -1; updDir(); pushLine(); };
+function updDir() {
+  const h = line.orientation === "horizontal";
+  $("dirLbl").textContent = line.entry_direction > 0 ? (h ? "Downward = IN" : "Rightward = IN") : (h ? "Upward = IN" : "Leftward = IN");
+  draw();
+}
+$("overlay").onclick = (e) => {
+  const r = e.target.getBoundingClientRect(), v = viewRect();
+  const p = line.orientation === "horizontal" ? (e.clientY - r.top - v.y) / v.h : (e.clientX - r.left - v.x) / v.w;
+  line.pos = Math.min(0.95, Math.max(0.05, p));
+  $("linePos").value = Math.round(line.pos * 100); $("linePos").oninput(); pushLine();
+};
+async function pushLine() {
+  draw();
+  if (session) await api(`/api/count/sessions/${session}`, { method: "PATCH", json: { line_pos: line.pos, orientation: line.orientation, entry_direction: line.entry_direction } });
+}
+
+function media() { return src === "photo" ? $("still") : $("video"); }
+function mediaSize() { const m = media(); return src === "photo" ? [m.naturalWidth, m.naturalHeight] : [m.videoWidth, m.videoHeight]; }
+function viewRect() { // where the media is drawn inside the stage (object-fit: contain)
+  const c = $("overlay"), [mw, mh] = mediaSize();
+  const W = c.clientWidth, H = c.clientHeight;
+  if (!mw || !mh) return { x: 0, y: 0, w: W, h: H };
+  const s = Math.min(W / mw, H / mh);
+  return { x: (W - mw * s) / 2, y: (H - mh * s) / 2, w: mw * s, h: mh * s };
+}
+
+function draw() {
+  const c = $("overlay"), ctx = c.getContext("2d");
+  c.width = c.clientWidth * devicePixelRatio; c.height = c.clientHeight * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.clearRect(0, 0, c.clientWidth, c.clientHeight);
+  const v = viewRect();
+  if (src !== "photo") { // counting line
+    ctx.strokeStyle = "#f2a900"; ctx.lineWidth = 3; ctx.setLineDash([10, 6]); ctx.beginPath();
+    if (line.orientation === "horizontal") { const y = v.y + v.h * line.pos; ctx.moveTo(v.x, y); ctx.lineTo(v.x + v.w, y); }
+    else { const x = v.x + v.w * line.pos; ctx.moveTo(x, v.y); ctx.lineTo(x, v.y + v.h); }
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#f2a900"; ctx.font = "bold 13px system-ui";
+    const lbl = "IN " + (line.orientation === "horizontal" ? (line.entry_direction > 0 ? "↓" : "↑") : (line.entry_direction > 0 ? "→" : "←"));
+    line.orientation === "horizontal" ? ctx.fillText(lbl, v.x + 8, v.y + v.h * line.pos - 8) : ctx.fillText(lbl, v.x + v.w * line.pos + 8, v.y + 18);
+  }
+  if (!last) return;
+  const boxes = last.tracks || last.detections.map((d) => ({ box: d }));
+  boxes.forEach((t) => {
+    const [x1, y1, x2, y2] = t.box;
+    const col = t.counted === "in" ? "#2e8b57" : t.counted === "out" ? "#c0392b" : "#4fd1c5";
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.strokeRect(v.x + x1 * v.w, v.y + y1 * v.h, (x2 - x1) * v.w, (y2 - y1) * v.h);
+    const tag = t.id ? `#${t.id}${t.counted ? " " + t.counted.toUpperCase() : ""}` : `${Math.round(t.box[4] * 100)}%`;
+    ctx.fillStyle = col; ctx.fillRect(v.x + x1 * v.w, v.y + y1 * v.h - 17, ctx.measureText(tag).width + 10, 17);
+    ctx.fillStyle = "#fff"; ctx.font = "12px system-ui"; ctx.fillText(tag, v.x + x1 * v.w + 5, v.y + y1 * v.h - 4);
+  });
+}
+
+function show(s) {
+  $("cIn").textContent = s.total_in ?? 0; $("cOut").textContent = s.total_out ?? 0;
+  $("cOn").textContent = s.onboard ?? 0; $("cFrame").textContent = s.in_frame ?? 0;
+  const p = Math.round(s.occupancy_pct ?? 0), cap = s.capacity || 40, on = s.onboard ?? 0;
+  $("occPct").className = "occ-badge " + ATOBS.occClass(p);
+  $("occPct").innerHTML = `${p}<small>%</small>`;
+  $("occLbl").textContent = `${Math.min(on, cap)}/${cap} seats occupied${on > cap ? ` · ${on - cap} standing` : ""}`;
+  if (ATOBS.seatMap) ATOBS.seatMap($("occSeats"), { occupied: Math.min(on, cap), standing: Math.max(0, on - cap), seed: $("bus").value, compact: true });
+}
+
+async function compareForecast() {
+  const b = buses.find((x) => x.id == $("bus").value); if (!b) return;
+  try {
+    const fc = await api(`/api/routes/${encodeURIComponent(b.route_id)}/forecast`);
+    const seq = $("stop").selectedIndex + 1 || 1;
+    const exp = fc.stops[Math.min(seq, fc.stops.length) - 1];
+    $("fcCompare").textContent = `Crowd model forecast for this stop at this hour: ${exp.occupancy}% (${exp.seats_occupied}/40 seats).`;
+  } catch (_) { /* ignore */ }
+}
+
+async function loadStops() {
+  const b = buses.find((x) => x.id == $("bus").value); if (!b) return;
+  ATOBS.context.route_id = b.route_id; ATOBS.context.bus_registration = b.registration;
+  const r = await api(`/api/routes/${encodeURIComponent(b.route_id)}`);
+  $("stop").innerHTML = r.stops.map((s) => `<option value="${s.stop_id}" ${s.stop_id === b.last_stop_id ? "selected" : ""}>${s.seq}. ${esc(s.short_name)}</option>`).join("");
+  await ATOBS.seatsReady;
+  show({ total_in: 0, total_out: 0, onboard: b.current_onboard, in_frame: 0, capacity: b.capacity, occupancy_pct: b.occupancy_pct });
+  compareForecast();
+}
+$("bus").onchange = loadStops;
+$("stop").onchange = async () => {
+  ATOBS.context.stop_id = $("stop").value;
+  if (session) await api(`/api/count/sessions/${session}`, { method: "PATCH", json: { stop_id: $("stop").value } });
+  compareForecast();
+};
+$("nextStop").onclick = () => { if ($("stop").selectedIndex < $("stop").options.length - 1) { $("stop").selectedIndex++; $("stop").onchange(); } };
+async function adjust(d) {
+  const cur = +$("cOn").textContent;
+  const s = await api(`/api/count/sessions/${session}`, { method: "PATCH", json: { onboard: Math.max(0, cur + d) } });
+  show({ ...s, in_frame: +$("cFrame").textContent });
+  logLine(`Manual correction ${d > 0 ? "+1" : "−1"} → ${s.onboard} on board`);
+}
+$("plus").onclick = () => adjust(1);
+$("minus").onclick = () => adjust(-1);
+
+function logLine(html) {
+  const l = $("log"); if (l.firstElementChild?.classList.contains("muted")) l.innerHTML = "";
+  const d = document.createElement("div");
+  d.innerHTML = `<span class="mono muted">${new Date().toLocaleTimeString()}</span> ${html}`;
+  l.prepend(d);
+}
+
+function toBlob() {
+  const m = media(), [w, h] = mediaSize();
+  const s = Math.min(1, 640 / Math.max(w, h));
+  grab.width = Math.round(w * s); grab.height = Math.round(h * s);
+  grab.getContext("2d").drawImage(m, 0, 0, grab.width, grab.height);
+  return new Promise((res) => grab.toBlob(res, "image/jpeg", 0.8));
+}
+
+async function loop() {
+  let frames = 0, t0 = performance.now();
+  while (running) {
+    const v = $("video");
+    if (src === "video" && v.ended) { logLine("<b>Video finished.</b>"); stop(); break; }
+    if (!v.videoWidth || v.paused && src === "webcam") { await new Promise((r) => setTimeout(r, 100)); continue; }
+    try {
+      const fd = new FormData(); fd.append("frame", await toBlob(), "f.jpg");
+      last = await api(`/api/count/sessions/${session}/frame`, { method: "POST", body: fd });
+      show(last); draw();
+      last.events.forEach((e) => logLine(`<span class="pill ${e.direction === "in" ? "ok" : "bad"}">${e.direction === "in" ? "Boarded" : "Alighted"}</span> passenger #${e.track} · ${e.onboard_after} on board`));
+      frames++;
+      const dt = (performance.now() - t0) / 1000;
+      if (dt > 2) { $("fps").textContent = `${(frames / dt).toFixed(1)} frames/s · ${last.inference_ms} ms detection`; frames = 0; t0 = performance.now(); }
+    } catch (e) {
+      ATOBS.toast(e.message, true);
+      if (e.status === 404 || e.status === 401) { stop(); break; }
+      await new Promise((r) => setTimeout(r, 800));
+    }
+  }
+}
+
+async function start() {
+  const busId = +$("bus").value;
+  if (!busId) return ATOBS.toast("Choose a bus first", true);
+  const file = $("file").files[0];
+  if (src !== "webcam" && !file) return ATOBS.toast("Choose a file first", true);
+  $("ph").hidden = true; last = null;
+
+  if (src === "photo") {
+    $("video").hidden = true; $("still").hidden = false;
+    $("still").src = URL.createObjectURL(file);
+    await $("still").decode();
+    const fd = new FormData(); fd.append("frame", await toBlob(), "p.jpg");
+    const r = await api("/api/count/image", { method: "POST", body: fd });
+    last = { detections: r.detections }; draw();
+    $("cFrame").textContent = r.count;
+    logLine(`Photo headcount: <b>${r.count}</b> people detected`);
+    return;
+  }
+  $("still").hidden = true; $("video").hidden = false;
+  const v = $("video");
+  try {
+    if (src === "webcam") {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "environment" }, audio: false });
+      v.srcObject = stream;
+    } else { v.srcObject = null; v.src = URL.createObjectURL(file); v.loop = false; }
+    await v.play();
+  } catch (e) {
+    $("ph").hidden = false;
+    $("ph").innerHTML = `Couldn't open the camera (${esc(e.message)}).<br>Allow camera access, or use a video file instead.`;
+    return;
+  }
+  const s = await api("/api/count/sessions", { json: { bus_id: busId, source: src, line_pos: line.pos, orientation: line.orientation, entry_direction: line.entry_direction, reset_onboard: $("resetOnboard").checked } });
+  session = s.session_id; running = true;
+  await api(`/api/count/sessions/${session}`, { method: "PATCH", json: { stop_id: $("stop").value } });
+  show(s);
+  logLine(`Session started on <b>${esc(s.bus.registration)}</b> (${s.detector})`);
+  ["stopBtn", "plus", "minus", "nextStop"].forEach((k) => ($(k).disabled = false));
+  $("stop").disabled = false;
+  ["startBtn", "bus"].forEach((k) => ($(k).disabled = true));
+  loop();
+}
+
+async function stop() {
+  running = false;
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  $("video").pause();
+  if (session) {
+    try { const s = await api(`/api/count/sessions/${session}/end`, { method: "POST" }); logLine(`Session ended · ${s.total_in} in, ${s.total_out} out, ${s.onboard} on board`); } catch (_) { /* already ended */ }
+    session = null;
+  }
+  ["stopBtn", "plus", "minus", "nextStop"].forEach((k) => ($(k).disabled = true));
+  ["startBtn", "bus"].forEach((k) => ($(k).disabled = false));
+}
+$("startBtn").onclick = start;
+$("stopBtn").onclick = stop;
+window.addEventListener("beforeunload", () => { if (session) navigator.sendBeacon(`/api/count/sessions/${session}/end`); });
+window.addEventListener("resize", draw);
+
+ATOBS.ready.then(async () => {
+  $("detPill").textContent = "detector: " + (await api("/api/count/detector")).detector;
+  buses = (await api("/api/buses")).items;
+  $("bus").innerHTML = buses.map((b) => `<option value="${b.id}">${esc(b.registration)} · route ${esc(b.route_id)}</option>`).join("");
+  const pre = ATOBS.qs("bus"); if (pre) $("bus").value = pre;
+  $("stop").disabled = false;
+  loadStops();
+  draw();
+}).catch(() => {});
+</script>
+</body>
+</html>

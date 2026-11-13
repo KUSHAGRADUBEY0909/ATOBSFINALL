@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATOBS · Bengaluru bus routes, crowd levels & safety</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="home">
+<header id="top"></header>
+<main class="wrap">
+  <section class="hero">
+    <h1>Find your BMTC bus and see how crowded it will be</h1>
+    <p id="heroStats">Loading network…</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Search routes</h3>
+        <form id="routeForm" class="row">
+          <input id="routeQ" placeholder="Route number or place, e.g. 500D or Shivajinagar" style="flex:1">
+          <button class="btn primary">Search</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3>Bus timings between two places</h3>
+        <form id="planForm" class="grid g2">
+          <div><input id="fromQ" placeholder="From stop" autocomplete="off"></div>
+          <div><input id="toQ" placeholder="To stop" autocomplete="off"></div>
+          <button class="btn primary" style="grid-column:1/-1">Show all buses &amp; timings</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <div class="split" style="margin-top:1.2rem">
+    <section class="card">
+      <div class="row"><h2 id="resTitle">All routes</h2><span class="spacer"></span><small id="resCount"></small></div>
+      <div id="results"><div class="empty">Loading…</div></div>
+      <div class="row" style="justify-content:center;margin-top:.8rem"><button class="btn" id="more" hidden>Show more</button></div>
+    </section>
+    <aside>
+      <section class="card">
+        <div class="row"><h2>Live fleet</h2><span class="spacer"></span><small>camera-counted</small></div>
+        <div id="fleet"><div class="empty">Loading…</div></div>
+      </section>
+      <section class="card">
+        <h2>Safety on board</h2>
+        <p class="muted" style="margin:.2rem 0 .8rem">Press the red <b>EMERGENCY</b> button at the bottom-left of any page to report a medical issue, harassment, accident or other emergency. The control room sees it immediately.</p>
+        <a class="btn" href="/alerts.html">Track an alert</a>
+      </section>
+    </aside>
+  </div>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const { api, esc, mins, meter } = ATOBS;
+let q = "", offset = 0;
+
+function routeRow(r, extra = "") {
+  return `<a class="list-item" href="/route.html?id=${encodeURIComponent(r.route_id)}">
+    <span class="pill route">${esc(r.route_id)}</span>
+    <div style="flex:1;min-width:0"><div><b>${esc(r.origin)}</b> → <b>${esc(r.destination)}</b></div>
+    <small>${r.distance_km ?? "–"} km · ${mins(r.journey_minutes)} · ${r.stop_count} stops${extra}</small></div>
+    ${r.buses ? `<span class="pill live">${r.buses} tracked</span>` : ""}</a>`;
+}
+
+async function loadRoutes(reset = true) {
+  if (reset) offset = 0;
+  const d = await api(`/api/routes?q=${encodeURIComponent(q)}&limit=25&offset=${offset}`);
+  const html = d.items.map((r) => routeRow(r)).join("");
+  const box = document.getElementById("results");
+  box.innerHTML = reset ? html || '<div class="empty">No routes match that search.</div>' : box.innerHTML + html;
+  offset += d.items.length;
+  document.getElementById("resCount").textContent = `${d.total.toLocaleString()} routes`;
+  document.getElementById("more").hidden = offset >= d.total;
+  document.getElementById("resTitle").textContent = q ? `Routes matching “${q}”` : "All routes";
+}
+
+document.getElementById("routeForm").onsubmit = (e) => { e.preventDefault(); q = document.getElementById("routeQ").value.trim(); loadRoutes(); };
+document.getElementById("more").onclick = () => loadRoutes(false);
+
+ATOBS.placeAutocomplete(document.getElementById("fromQ"));
+ATOBS.placeAutocomplete(document.getElementById("toQ"));
+document.getElementById("planForm").onsubmit = (e) => {
+  e.preventDefault();
+  const a = document.getElementById("fromQ").value.trim(), b = document.getElementById("toQ").value.trim();
+  if (!a || !b) return ATOBS.toast("Enter both places", true);
+  location.href = `/timings.html?from=${encodeURIComponent(a)}&to=${encodeURIComponent(b)}`;
+};
+
+async function loadFleet() {
+  const d = await api("/api/buses");
+  document.getElementById("fleet").innerHTML = d.items.map((b) => `
+    <a class="list-item" href="/route.html?id=${encodeURIComponent(b.route_id)}" style="display:block">
+      <div class="row"><span class="pill route">${esc(b.route_id)}</span><b class="mono" style="font-size:.85rem">${esc(b.registration)}</b><span class="spacer"></span>
+      ${b.live ? '<span class="pill live">live</span>' : `<small>${ATOBS.ago(b.last_update)}</small>`}</div>
+      <div class="row" style="margin-top:.35rem"><div style="flex:1">${meter(b.occupancy_pct)}</div><b class="${ATOBS.occClass(b.occupancy_pct)}">${b.occupancy_pct}%</b><small>${b.seats_occupied}/${b.capacity} seats${b.standing ? " +" + b.standing + " standing" : ""}</small></div>
+    </a>`).join("") || '<div class="empty">No buses yet</div>';
+}
+
+(async () => {
+  const s = await api("/api/stats");
+  document.getElementById("heroStats").textContent =
+    `${s.routes.toLocaleString()} routes · ${s.stops.toLocaleString()} stops · ${s.verified_routes.toLocaleString()} routes with start/end verified on the map · crowd forecasts learned from ${s.observations.toLocaleString()} observations`;
+  loadRoutes();
+  loadFleet();
+  setInterval(loadFleet, 10000);
+})();
+</script>
+</body>
+</html>

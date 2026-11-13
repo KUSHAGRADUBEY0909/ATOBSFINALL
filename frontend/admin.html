@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control room · ATOBS</title>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="admin" data-role="operator,admin">
+<header id="top"></header>
+<main class="wrap">
+  <div class="row" style="margin-bottom:1rem"><h1 style="margin:0">Control room</h1><span class="spacer"></span>
+    <label class="check" style="margin:0"><input type="checkbox" id="sound" checked> Sound on new alert</label></div>
+  <div id="banner"></div>
+
+  <div class="grid g4">
+    <div class="card stat"><div class="k">Open alerts</div><div class="v" id="sOpen">–</div></div>
+    <div class="card stat"><div class="k">Critical open</div><div class="v" id="sCrit" style="color:var(--sos)">–</div></div>
+    <div class="card stat"><div class="k">Boardings today</div><div class="v" id="sIn">–</div></div>
+    <div class="card stat"><div class="k">Live cameras</div><div class="v" id="sCam">–</div></div>
+  </div>
+
+  <div class="split" style="margin-top:1rem">
+    <section class="card">
+      <div class="row"><h2>Emergency alerts</h2><span class="spacer"></span>
+        <div class="seg" id="filt"><button data-f="open" class="on">Open</button><button data-f="">All</button><button data-f="resolved">Resolved</button></div></div>
+      <div style="overflow:auto"><table><thead><tr><th>Ref</th><th>Type</th><th>Severity</th><th>Route / bus</th><th>Status</th><th>Received</th></tr></thead>
+        <tbody id="alerts"></tbody></table></div>
+    </section>
+    <section class="card" id="detail"><div class="empty">Select an alert to see details and respond.</div></section>
+  </div>
+
+  <section class="card" style="margin-top:1rem">
+    <div class="row"><h2>Fleet occupancy (camera counts)</h2><span class="spacer"></span><small>updates every 5 s</small></div>
+    <div style="overflow:auto"><table><thead><tr><th>Bus</th><th>Route</th><th>On board</th><th style="width:22%">Occupancy</th><th>In / out</th><th>Near</th><th>Camera</th><th></th></tr></thead><tbody id="fleet"></tbody></table></div>
+    <form id="addBus" class="row" style="margin-top:1rem" hidden>
+      <b>Add bus</b><input id="nbReg" placeholder="Registration e.g. KA-57-F-1234" style="width:220px" required>
+      <input id="nbRoute" placeholder="Route no." style="width:120px" required>
+      <input id="nbCap" type="number" min="5" max="120" value="40" style="width:90px" title="Seats">
+      <button class="btn primary">Add</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="row"><h2 style="margin:0">Route data quality</h2><span class="spacer"></span><small id="auditSum"></small></div>
+    <p class="muted" style="margin:.3rem 0 .6rem">Start/end stops checked against published map coordinates during import. Every correction is listed here and in <span class="mono">data/terminal_audit.csv</span>.</p>
+    <div style="overflow:auto;max-height:320px"><table><thead><tr><th>Route</th><th>Field</th><th>Before</th><th>After</th><th>Why</th></tr></thead><tbody id="audit"></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Recent counting sessions</h2>
+    <div style="overflow:auto"><table><thead><tr><th>Started</th><th>Bus</th><th>Operator</th><th>Source</th><th>Detector</th><th>In</th><th>Out</th><th>Max in view</th><th>Frames</th><th>Status</th></tr></thead><tbody id="sessions"></tbody></table></div>
+  </section>
+</main>
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script src="/js/common.js"></script>
+<script>
+const { api, esc, meter } = ATOBS;
+const $ = (id) => document.getElementById(id);
+let filter = "open", selected = null, lastId = null, dmap = null;
+const STATUSES = [["acknowledged", "Acknowledge"], ["dispatched", "Help dispatched"], ["resolved", "Resolve"], ["false_alarm", "False alarm"]];
+const pill = (cls, t) => `<span class="pill ${cls}">${esc(t)}</span>`;
+
+function beep() {
+  if (!$("sound").checked) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, 0.5].forEach((t) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.2, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.2);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.2);
+    });
+  } catch (_) { /* audio blocked */ }
+}
+
+async function loadAlerts() {
+  const d = await api(`/api/admin/alerts${filter ? `?status=${filter}` : ""}`);
+  $("alerts").innerHTML = d.items.map((a) => `<tr class="click ${a.id === selected ? "selected" : ""}" data-id="${a.id}">
+    <td class="mono">${esc(a.reference)}</td><td>${esc(a.category_label)}</td><td>${pill("sev-" + a.severity, a.severity)}</td>
+    <td>${a.route_id ? `<span class="pill route">${esc(a.route_id)}</span>` : ""} <small class="mono">${esc(a.bus_registration || "")}</small></td>
+    <td>${pill("st-" + a.status, a.status.replace("_", " "))}</td><td><small>${ATOBS.ago(a.created_at)}</small></td></tr>`).join("")
+    || `<tr><td colspan="6" class="empty">No ${filter || ""} alerts.</td></tr>`;
+}
+$("alerts").onclick = (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) showAlert(+tr.dataset.id); };
+$("filt").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; filter = b.dataset.f; $("filt").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); loadAlerts(); };
+
+async function showAlert(id) {
+  selected = id;
+  const a = await api(`/api/admin/alerts/${id}`);
+  if (dmap) { dmap.remove(); dmap = null; }
+  $("detail").innerHTML = `
+    <div class="row"><h2 style="margin:0">${esc(a.category_label)}</h2><span class="spacer"></span>${pill("sev-" + a.severity, a.severity)} ${pill("st-" + a.status, a.status.replace("_", " "))}</div>
+    <small class="mono">${esc(a.reference)} · ${ATOBS.fmt(a.created_at)}</small>
+    <p style="white-space:pre-wrap;background:#f7faf9;border-radius:9px;padding:.7rem;margin:.8rem 0">${esc(a.description)}</p>
+    <table><tbody>
+      <tr><th>Reporter</th><td>${esc(a.reporter_name || "Anonymous")} ${a.reporter_phone ? `· <a href="tel:${esc(a.reporter_phone)}">${esc(a.reporter_phone)}</a>` : ""}</td></tr>
+      <tr><th>Route</th><td>${a.route_id ? `<a href="/route.html?id=${encodeURIComponent(a.route_id)}">${esc(a.route_id)}</a> ${esc(a.origin || "")} → ${esc(a.destination || "")}` : "–"}</td></tr>
+      <tr><th>Bus</th><td>${esc(a.bus_registration || "–")}${a.bus ? ` · ${a.bus.current_onboard}/${a.bus.capacity} on board` : ""}</td></tr>
+      <tr><th>Stop</th><td>${esc(a.stop_name || "–")}</td></tr>
+      <tr><th>Location</th><td>${a.lat ? `${a.lat.toFixed(5)}, ${a.lon.toFixed(5)}` : "Not shared"}</td></tr>
+    </tbody></table>
+    ${a.lat ? '<div id="dmap" class="map" style="height:200px;margin-top:.6rem"></div>' : ""}
+    <h3 style="margin-top:1rem">Respond</h3>
+    <div class="row">${STATUSES.map(([s, t]) => `<button class="btn sm ${s === "resolved" ? "primary" : ""}" data-st="${s}" ${a.status === s ? "disabled" : ""}>${t}</button>`).join("")}</div>
+    <div class="field" style="margin-top:.6rem"><textarea id="note" placeholder="Add a note (visible to the passenger when tracking)" style="min-height:70px"></textarea></div>
+    <button class="btn" id="addNote" style="margin-top:.4rem">Add note</button>
+    <h3 style="margin-top:1rem">Timeline</h3>
+    <div class="timeline">${a.updates.map((u) => `<div><b>${esc((u.status || "note").replace("_", " "))}</b> <small>${ATOBS.fmt(u.created_at)}${u.author ? " · " + esc(u.author) : ""}</small>${u.note ? `<div>${esc(u.note)}</div>` : ""}</div>`).join("")}</div>`;
+  $("detail").querySelectorAll("[data-st]").forEach((b) => (b.onclick = () => update(id, { status: b.dataset.st, note: $("note").value.trim() || null })));
+  $("addNote").onclick = () => { const n = $("note").value.trim(); if (n) update(id, { note: n }); };
+  if (a.lat && window.L) {
+    dmap = L.map("dmap").setView([a.lat, a.lon], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(dmap);
+    L.circleMarker([a.lat, a.lon], { radius: 10, color: "#d7263d", fillColor: "#d7263d", fillOpacity: 0.6 }).addTo(dmap);
+  }
+  loadAlerts();
+}
+
+async function update(id, body) {
+  try { await api(`/api/admin/alerts/${id}`, { method: "PATCH", json: body }); ATOBS.toast("Alert updated"); showAlert(id); refresh(); }
+  catch (e) { ATOBS.toast(e.message, true); }
+}
+
+async function refresh() {
+  const s = await api("/api/admin/summary");
+  $("sOpen").textContent = s.open_alerts; $("sCrit").textContent = s.critical_open;
+  $("sIn").textContent = s.boardings_today; $("sCam").textContent = s.active_cameras;
+  if (lastId !== null && s.latest_alert_id > lastId) {
+    beep();
+    const a = (await api("/api/admin/alerts?status=new")).items[0];
+    if (a) {
+      $("banner").innerHTML = `<div class="alert-banner"><span style="font-size:1.4rem">🚨</span><div style="flex:1"><b>New ${esc(a.severity)} alert: ${esc(a.category_label)}</b><br><small style="color:#fff">${esc(a.description.slice(0, 120))}</small></div>
+        <button class="btn sm" id="bannerOpen">Open</button><button class="btn sm ghost" style="color:#fff" id="bannerX">✕</button></div>`;
+      $("bannerOpen").onclick = () => { $("banner").innerHTML = ""; showAlert(a.id); };
+      $("bannerX").onclick = () => ($("banner").innerHTML = "");
+    }
+    loadAlerts();
+  }
+  lastId = s.latest_alert_id;
+  $("fleet").innerHTML = s.buses.map((b) => `<tr>
+    <td class="mono">${esc(b.registration)}</td><td><a class="pill route" style="text-decoration:none" href="/route.html?id=${encodeURIComponent(b.route_id)}">${esc(b.route_id)}</a></td>
+    <td><b>${b.current_onboard}</b> / ${b.capacity}</td><td>${meter(b.occupancy_pct)}<small><b class="${ATOBS.occClass(b.occupancy_pct)}">${b.occupancy_pct}%</b> · ${b.seats_occupied}/${b.capacity} seats${b.standing ? " · " + b.standing + " standing" : ""}</small></td>
+    <td>${b.total_in} / ${b.total_out}</td><td>${esc(b.last_stop_name || "–")}</td>
+    <td>${b.live ? `<span class="pill live">${b.in_frame} in view</span>` : `<small>${ATOBS.ago(b.last_update)}</small>`}</td>
+    <td><a class="btn sm" href="/counter.html?bus=${b.id}">Open camera</a></td></tr>`).join("");
+  $("sessions").innerHTML = s.recent_sessions.map((c) => `<tr><td><small>${ATOBS.fmt(c.started_at)}</small></td><td class="mono">${esc(c.registration)}</td><td>${esc(c.operator || "")}</td>
+    <td>${esc(c.source)}</td><td>${esc(c.detector)}</td><td>${c.total_in}</td><td>${c.total_out}</td><td>${c.max_in_frame}</td><td>${c.frames_processed}</td>
+    <td>${c.ended_at ? '<small>ended</small>' : '<span class="pill live">running</span>'}</td></tr>`).join("") || '<tr><td colspan="10" class="empty">No sessions yet.</td></tr>';
+}
+
+$("addBus").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    await api("/api/buses", { json: { registration: $("nbReg").value, route_id: $("nbRoute").value.trim(), capacity: +$("nbCap").value } });
+    ATOBS.toast("Bus added"); e.target.reset(); refresh();
+  } catch (ex) { ATOBS.toast(ex.message, true); }
+};
+
+ATOBS.ready.then((u) => {
+  if (u.role === "admin") $("addBus").hidden = false;
+  loadAlerts(); refresh();
+  api("/api/data/audit").then((d) => {
+    $("auditSum").textContent = `${d.routes_with_verified_terminal} routes verified · ${d.items.length} fixes`;
+    $("audit").innerHTML = d.items.map((a) => `<tr><td>${a.route_id === "*" ? "<small>all</small>" : `<a href="/route.html?id=${encodeURIComponent(a.route_id)}">${esc(a.route_id)}</a>`}</td><td><small>${esc(a.field)}</small></td><td><small>${esc(a.old)}</small></td><td><small><b>${esc(a.new)}</b></small></td><td><small>${esc(a.reason)}</small></td></tr>`).join("");
+  });
+  setInterval(refresh, 5000);
+  setInterval(loadAlerts, 15000);
+}).catch(() => {});
+</script>
+</body>
+</html>

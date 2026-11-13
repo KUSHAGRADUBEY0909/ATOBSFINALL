@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Route · ATOBS</title>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="route">
+<header id="top"></header>
+<main class="wrap">
+  <div id="head" class="card"><div class="empty">Loading route…</div></div>
+
+  <div class="split" style="margin-top:1rem">
+    <div>
+      <section class="card">
+        <div class="row">
+          <h2>Crowd forecast</h2><span class="spacer"></span>
+          <label for="hour" style="margin:0">Departure hour</label>
+          <input type="range" id="hour" min="5" max="23" step="0.5" style="width:180px">
+          <b id="hourLbl" class="mono"></b>
+        </div>
+        <p id="fcSummary" class="muted" style="margin:.3rem 0 .6rem"></p>
+        <svg id="chart" class="chart" role="img" aria-label="Predicted occupancy at each stop"></svg>
+        <div class="legend" style="margin-top:.4rem">
+          <span>Seats available / moderate</span><span class="l-warn">Crowded (65%+)</span><span class="l-bad">Very crowded (85%+)</span><span class="l-obs">Observed average this hour</span>
+        </div>
+        <small class="muted" id="modelInfo"></small>
+      </section>
+      <section class="card">
+        <div class="row"><h2 style="margin:0">Predicted seats</h2><span class="spacer"></span>
+          <label for="stopSel" style="margin:0">at stop</label><select id="stopSel" style="width:auto;max-width:260px"></select></div>
+        <div class="row" style="align-items:flex-start;gap:1.5rem;margin-top:.6rem">
+          <div id="seatPred"></div>
+          <div style="max-width:260px">
+            <div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em">Predicted occupancy</div>
+            <div id="predPct" class="occ-badge"></div>
+            <p id="predTxt" class="muted"></p>
+          </div>
+        </div>
+      </section>
+      <section class="card"><h2>Map</h2><div id="map" class="map"></div></section>
+    </div>
+    <aside>
+      <section class="card">
+        <div class="row"><h2>Buses on this route</h2><span class="spacer"></span><small>refreshes every 5 s</small></div>
+        <div id="buses"></div>
+      </section>
+      <section class="card">
+        <h2>Timetable</h2>
+        <div id="tt"></div>
+      </section>
+      <section class="card">
+        <h2>Stops</h2>
+        <div id="stops" style="max-height:420px;overflow:auto"></div>
+      </section>
+    </aside>
+  </div>
+</main>
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script src="/js/common.js"></script>
+<script>
+const { api, esc, mins, meter } = ATOBS;
+const id = ATOBS.qs("id");
+ATOBS.context.route_id = id;
+let route, map, busLayer;
+
+function drawChart(fc) {
+  const svg = document.getElementById("chart");
+  const W = svg.clientWidth || 700, H = 220, P = { l: 34, r: 8, t: 10, b: 24 };
+  const n = fc.stops.length, bw = (W - P.l - P.r) / n;
+  const y = (v) => P.t + (H - P.t - P.b) * (1 - v / 100);
+  let g = "";
+  for (const v of [0, 25, 50, 75, 100]) g += `<line class="grid" x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${P.l - 6}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`;
+  fc.stops.forEach((s, i) => {
+    const cls = s.occupancy >= 85 ? "bad" : s.occupancy >= 65 ? "warn" : "";
+    const st = route.stops[i];
+    g += `<rect class="bar ${cls}" x="${P.l + i * bw + bw * 0.15}" y="${y(s.occupancy)}" width="${Math.max(bw * 0.7, 1)}" height="${y(0) - y(s.occupancy)}" rx="2">
+      <title>Stop ${s.seq}: ${st ? st.short_name : ""}\nPredicted ${s.occupancy}% full · ${s.seats_occupied}/40 seats</title></rect>`;
+  });
+  const step = Math.ceil(n / 12);
+  fc.stops.forEach((s, i) => { if (i % step === 0) g += `<text x="${P.l + i * bw + bw / 2}" y="${H - 6}" text-anchor="middle">${s.seq}</text>`; });
+  if (fc.observed.length) {
+    const pts = fc.observed.map((o) => `${P.l + (o.seq - 1) * bw + bw / 2},${y(o.occupancy)}`);
+    g += `<polyline class="obs" points="${pts.join(" ")}"/>` + fc.observed.map((o) => `<circle class="obsdot" r="2.5" cx="${P.l + (o.seq - 1) * bw + bw / 2}" cy="${y(o.occupancy)}"><title>Observed ${o.occupancy}% (${o.n} records)</title></circle>`).join("");
+  }
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = g;
+}
+
+async function loadForecast() {
+  const h = +document.getElementById("hour").value;
+  document.getElementById("hourLbl").textContent = `${String(Math.floor(h)).padStart(2, "0")}:${h % 1 ? "30" : "00"}`;
+  const fc = await api(`/api/routes/${encodeURIComponent(id)}/forecast?hour=${h}`);
+  const busiest = fc.stops.reduce((a, b) => (b.occupancy > a.occupancy ? b : a), fc.stops[0]);
+  const bs = route.stops[busiest.seq - 1];
+  document.getElementById("fcSummary").innerHTML =
+    `<b>${fc.label}</b> at the busiest point (${busiest.occupancy}% near <b>${esc(bs ? bs.short_name : "stop " + busiest.seq)}</b>). ` +
+    `Typical traffic: ${fc.traffic_level}${fc.is_peak_hour ? " · peak hour" : ""}.`;
+  const m = fc.model;
+  document.getElementById("modelInfo").textContent = m.metrics
+    ? `Model: ${m.name}, trained on ${(m.train_rows + m.test_rows).toLocaleString()} ATOBS observations · occupancy MAE ${m.metrics.bus_occupancy.mae} pts (R² ${m.metrics.bus_occupancy.r2}) on held-out routes`
+    : "Model not trained — showing heuristic estimate.";
+  drawChart(fc);
+  lastFc = fc;
+  showPredSeats();
+}
+let lastFc = null;
+async function showPredSeats() {
+  if (!lastFc) return;
+  await ATOBS.seatsReady;
+  const i = Math.max(0, document.getElementById("stopSel").selectedIndex);
+  const s = lastFc.stops[i];
+  ATOBS.seatMap(document.getElementById("seatPred"), { occupied: s.seats_occupied, pct: s.occupancy, seed: id + i });
+  document.getElementById("predPct").className = "occ-badge " + ATOBS.occClass(s.occupancy);
+  document.getElementById("predPct").innerHTML = `${s.occupancy}<small>%</small>`;
+  const st = route.stops[i];
+  document.getElementById("predTxt").innerHTML = `${s.seats_occupied} of 40 seats taken when the bus leaves <b>${esc(st ? st.short_name : "")}</b> at ${document.getElementById("hourLbl").textContent} · ${ATOBS.crowdLabel(s.occupancy).toLowerCase()}.`;
+}
+
+function busCard(b) {
+  return `<div class="list-item" style="display:block">
+    <div class="row"><b class="mono">${esc(b.registration)}</b><span class="spacer"></span>${b.live ? '<span class="pill live">camera live</span>' : `<small>updated ${ATOBS.ago(b.last_update)}</small>`}</div>
+    <div class="row" style="margin-top:.4rem;align-items:center"><span class="occ-badge ${ATOBS.occClass(b.occupancy_pct)}">${b.occupancy_pct}<small>%</small></span>
+      <small>${b.seats_occupied}/${b.capacity} seats${b.standing ? ` · ${b.standing} standing` : ""}<br>${b.crowd_label}${b.last_stop_name ? ` · near ${esc(b.last_stop_name)}` : ""}</small></div>
+    <div data-seats="${b.id}" style="margin-top:.5rem"></div>
+  </div>`;
+}
+
+async function refreshBuses() {
+  const r = await api(`/api/routes/${encodeURIComponent(id)}`);
+  document.getElementById("buses").innerHTML = r.buses.map(busCard).join("") || '<div class="empty">No camera-equipped bus on this route yet.</div>';
+  await ATOBS.seatsReady;
+  r.buses.forEach((b) => ATOBS.seatMap(document.querySelector(`[data-seats="${b.id}"]`), { occupied: b.seats_occupied, standing: b.standing, seed: b.registration, compact: true }));
+  if (map) {
+    busLayer.clearLayers();
+    r.buses.filter((b) => b.lat).forEach((b) => L.circleMarker([b.lat, b.lon], { radius: 10, color: "#0a464c", fillColor: "#f2a900", fillOpacity: 1, weight: 3 })
+      .bindPopup(`<b>${esc(b.registration)}</b><br>${b.current_onboard}/${b.capacity} on board`).addTo(busLayer));
+  }
+}
+
+(async () => {
+  try { route = await api(`/api/routes/${encodeURIComponent(id)}`); }
+  catch (e) { document.getElementById("head").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  document.title = `Route ${route.route_id} · ATOBS`;
+  const o = route.observations;
+  document.getElementById("head").innerHTML = `<div class="row">
+      <span class="pill route" style="font-size:1.1rem;padding:.3rem .8rem">${esc(route.route_id)}</span>
+      <h1 style="margin:0">${esc(route.origin)} → ${esc(route.destination)}</h1></div>
+    <div class="row" style="margin-top:.6rem;gap:1.4rem">
+      <span>📏 ${route.distance_km ?? "–"} km</span><span>⏱ ${mins(route.journey_minutes)}</span><span>🚏 ${route.stop_count} stops</span>
+      <span>🕒 ${route.departures_from_origin.length} departures/day</span>
+      ${o ? `<span>👥 avg ${o.avg_occ}% full across ${o.trips} recorded trips</span>` : ""}
+      ${route.verified_terminals ? `<span class="pill ok" title="Start/end checked against published map coordinates">✓ ${route.verified_terminals.replace(",", " & ")} verified on map</span>` : ""}</div>`;
+  document.getElementById("stopSel").innerHTML = route.stops.map((s) => `<option>${s.seq}. ${esc(s.short_name)}</option>`).join("");
+  document.getElementById("stopSel").onchange = showPredSeats;
+
+  const now = new Date();
+  document.getElementById("hour").value = Math.min(23, Math.max(5, now.getHours() + (now.getMinutes() >= 30 ? 0.5 : 0)));
+  document.getElementById("hour").oninput = loadForecast;
+  window.addEventListener("resize", loadForecast);
+  loadForecast();
+
+  document.getElementById("stops").innerHTML = route.stops.map((s) => `<div class="list-item" style="padding:.45rem .2rem">
+    <span class="pill" style="min-width:2.2rem;text-align:center">${s.seq}</span><div><div>${esc(s.short_name)}</div><small>${esc(s.name.split(",").slice(1).join(",")) || ""}</small></div></div>`).join("");
+
+  const tt = (label, arr) => arr.length ? `<h3 style="margin-top:.6rem">${label}</h3><div class="row" style="gap:.3rem">${arr.map((t) => `<span class="pill mono">${esc(t)}</span>`).join("")}</div>` : "";
+  document.getElementById("tt").innerHTML = (tt(`From ${route.origin}`, route.departures_from_origin) + tt(`From ${route.destination}`, route.departures_from_destination)) || '<div class="muted">No timetable in the dataset.</div>';
+
+  const pts = route.stops.filter((s) => s.lat).map((s) => [s.lat, s.lon]);
+  if (pts.length && window.L) {
+    map = L.map("map");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    L.polyline(pts, { color: "#0d5c63", weight: 4 }).addTo(map);
+    route.stops.filter((s) => s.lat).forEach((s, i, a) => L.circleMarker([s.lat, s.lon], { radius: i === 0 || i === a.length - 1 ? 7 : 4, color: "#0d5c63", fillColor: "#fff", fillOpacity: 1, weight: 2 })
+      .bindTooltip(`${s.seq}. ${esc(s.short_name)}`).addTo(map));
+    map.fitBounds(pts, { padding: [20, 20] });
+    busLayer = L.layerGroup().addTo(map);
+  }
+  refreshBuses();
+  setInterval(refreshBuses, 5000);
+})();
+</script>
+</body>
+</html>

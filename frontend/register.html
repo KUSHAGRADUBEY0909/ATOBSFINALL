@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign up · ATOBS</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="register">
+<header id="top"></header>
+<main class="wrap">
+  <section class="card auth-card">
+    <h1>Create your account</h1>
+    <p class="muted">Your name and phone are pre-filled when you report an emergency, so the control room can call you back.</p>
+    <form id="f">
+      <div class="field"><label for="name">Full name</label><input id="name" required minlength="2"></div>
+      <div class="field"><label for="email">Email</label><input id="email" type="email" required></div>
+      <div class="field"><label for="phone">Phone (optional)</label><input id="phone" type="tel" placeholder="+91 …"></div>
+      <div class="field"><label for="pw">Password</label><input id="pw" type="password" required minlength="6" autocomplete="new-password"></div>
+      <div id="err" class="error" hidden style="margin-top:.8rem"></div>
+      <button class="btn primary" style="width:100%;margin-top:1rem">Sign up</button>
+    </form>
+    <p class="muted">Already registered? <a href="/login.html">Log in</a></p>
+  </section>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+$("f").onsubmit = async (e) => {
+  e.preventDefault();
+  $("err").hidden = true;
+  try {
+    await ATOBS.api("/api/auth/register", { json: { name: $("name").value, email: $("email").value, phone: $("phone").value || null, password: $("pw").value } });
+    location.href = "/";
+  } catch (ex) { $("err").textContent = ex.message; $("err").hidden = false; }
+};
+</script>
+</body>
+</html>
